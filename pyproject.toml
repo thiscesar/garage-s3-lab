@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "garage-s3-lab"
+version = "0.1.0"
+description = "Laboratório Garage S3 (Sistemas Distribuídos, UNIVALI): Tema 3, Ênfase A"
+requires-python = ">=3.11"
+dependencies = [
+    "jinja2>=3.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["lab*"]

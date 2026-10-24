@@ -1,0 +1,77 @@
+# Laboratório Garage S3: 3 nós + cliente (roteiro §7.2).
+# IPs vêm dos prefixos do .env; `make env` cria o .env.
+name: garage-s3-lab
+
+x-garage: &garage
+  image: dxflrs/garage:v2.3.0
+  mem_limit: 128m
+  restart: "no"                       # o laboratório decide quando um nó volta
+  user: "${UID:?rode make env}:${GID:?rode make env}"   # dados/ com o usuário do host
+  healthcheck:
+    test: ["CMD", "/garage", "status"]  # forma exec: a imagem só tem o binário /garage
+    interval: 5s
+    timeout: 4s
+    retries: 3
+    start_period: 5s
+
+services:
+  garage1:
+    <<: *garage
+    container_name: garage1
+    hostname: garage1
+    volumes:
+      - ./generated/garage1.toml:/etc/garage.toml:ro
+      - ./dados/g1:/var/lib/garage
+    networks:
+      interna: {ipv4_address: "${REDE_INTERNA_PREFIXO:?rode make env}.21"}
+      clientes: {ipv4_address: "${REDE_CLIENTES_PREFIXO:?rode make env}.21"}
+
+  garage2:
+    <<: *garage
+    container_name: garage2
+    hostname: garage2
+    volumes:
+      - ./generated/garage2.toml:/etc/garage.toml:ro
+      - ./dados/g2:/var/lib/garage
+    networks:
+      interna: {ipv4_address: "${REDE_INTERNA_PREFIXO:?rode make env}.22"}
+      clientes: {ipv4_address: "${REDE_CLIENTES_PREFIXO:?rode make env}.22"}
+
+  garage3:
+    <<: *garage
+    container_name: garage3
+    hostname: garage3
+    volumes:
+      - ./generated/garage3.toml:/etc/garage.toml:ro
+      - ./dados/g3:/var/lib/garage
+    networks:
+      interna: {ipv4_address: "${REDE_INTERNA_PREFIXO:?rode make env}.23"}
+      clientes: {ipv4_address: "${REDE_CLIENTES_PREFIXO:?rode make env}.23"}
+
+  cliente:                            # Python + boto3 em imagem própria
+    build: ./cliente
+    image: garage-s3-lab-cliente
+    container_name: cliente
+    hostname: cliente
+    mem_limit: 128m
+    restart: "no"
+    env_file:
+      - path: .env
+        required: false               # credenciais gravadas pelo iniciar.sh
+    volumes:
+      - ./cliente/s3.py:/s3.py:ro
+    networks:
+      clientes: {ipv4_address: "${REDE_CLIENTES_PREFIXO:?rode make env}.100"}
+
+networks:
+  interna:                            # só RPC entre nós; sem saída externa
+    name: t3_interna
+    internal: true
+    ipam:
+      config:
+        - subnet: "${REDE_INTERNA_PREFIXO:?rode make env}.0/24"
+  clientes:                           # API S3 e Admin
+    name: t3_clientes
+    ipam:
+      config:
+        - subnet: "${REDE_CLIENTES_PREFIXO:?rode make env}.0/24"
