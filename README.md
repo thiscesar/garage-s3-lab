@@ -65,10 +65,17 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 | **E2** Caminho de uma operação | qualquer nó é gateway; para onde vão os RPCs de um PUT e de um GET | PUT vai às 3 réplicas e **começa com uma leitura** (para calcular o carimbo); GET em `consistent` consulta 2 nós; o bloco de 2 MiB é lido só do disco do nó de entrada | 5/5 |
 | **E3** Replicação | objeto de 8 MiB nos 3 discos; latência; propagação | 8,000 MiB em cada nó e SHA-256 igual; PUT ≈ 52 ms × GET ≈ 13 ms (4 KiB); propagação 0 em 90/90 leituras | 4/4 |
 | **E4** Consistência | leitura logo após a escrita, sem falhas | `consistent`: 0 desatualizadas em 2 000; `degraded` 0,5–1,0% e `dangerous` 1,8–2,7%. **Refutada:** a listagem em `dangerous` falhou em ~14% (previsto ≤ 5%); sondagem mostrou listagem = GET quando medidos no mesmo ritmo (hipótese: efeito da cadência das escritas) | 3/4 |
-| **E5** Falha e quórum | parar 1 e 2 nós em cada modo | em regime, o quadro "nós ativos × leitura × escrita" bate com N/R/W nos 9 casos. **Refutadas** por transitórios: timeouts logo após parar um nó em `consistent` e ~23 s para voltar a escrever em `degraded` | 1/4 |
-| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 99,6% disponível; minoria 0/836 (nenhuma leitura desatualizada); detecção da partição ≈ 80 s; malha refeita ≈ 22 s após curar → **C em vez de A** | 5/5 |
+| **E5** Falha e quórum | parar 1 e 2 nós em cada modo | em regime, o quadro "nós ativos × leitura × escrita" bate com N/R/W nos 9 casos. **Refutadas** por transitórios: timeouts logo após parar um nó em `consistent` e ~23 s para voltar a escrever em `degraded` | 1/4 ⚠️ |
+| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 99,6% disponível; minoria 0/836 (nenhuma leitura desatualizada); detecção da partição ≈ 80 s; malha refeita ≈ 22 s após curar → **C em vez de A** | 5/5 ⚠️ |
 | **E7** Recuperação | o nó que volta recebe o que perdeu? anti-entropia e `repair` | sem `repair`: tabelas iguais em ~475 s e dados em ~1 075 s (+600 s de agendamento no código); com `repair`: ~34 s; estado final idêntico. **Refutada:** previsão de ~10 min para a convergência natural completa | 3/4 |
 | **E8** Coordenação e ordem | sem líder; PUTs concorrentes; layout versionado; `CreateBucket` concorrente | valor único em 250/250 pares (LWW), venceu o PUT que começou depois em 84%; `apply` com versão errada recusado; `CreateBucket` concorrente gerou 3 nomes duplicados e 17 buckets órfãos | 5/5 |
+
+> ⚠️ **E5 e E6 estão sendo refeitos (25/10/2026).** No teste deste README descobrimos que o cliente boto3 fazia
+> **uma nova tentativa** depois de timeout ou de erro 503: no botocore, `max_attempts: 1` significa "1 *nova*
+> tentativa"; o correto para "sem retries" é `total_max_attempts: 1`. Isso não muda E1–E4, E7 e E8 (não houve
+> erro S3 nessas execuções), mas afeta os números de E5 e E6 (timeouts de ~6–7 s em vez de 3 s e algumas falhas
+> mascaradas). O cliente foi corrigido (commit `cliente S3 sem novas tentativas`, com teste); a tabela acima será
+> atualizada com as novas execuções.
 
 ### Onde estão os resultados
 
