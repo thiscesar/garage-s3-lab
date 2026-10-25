@@ -39,7 +39,7 @@ continua acessível ao cliente pela rede `clientes`.
 | Caminho | Conteúdo |
 |---|---|
 | `lab/` | biblioteca Python: configuração, Docker, Admin API do Garage, clientes S3, gerador de carga, oráculo, estatísticas, figuras, relatórios e a CLI `labctl` |
-| `lab/experiments/` | um módulo por experimento (`e1_topologia.py` … `e8_coordenacao.py`) e a classe base (pré-condição, repetições, manifest, restauração do cluster) |
+| `lab/experiments/` | um módulo por experimento (`e1_topologia.py` … `e9_modos.py`) e a classe base (pré-condição, repetições, manifest, restauração do cluster) |
 | `predicoes/` | previsões de cada experimento (`E1.yaml` … `E9.yaml`), com fontes; o resultado é confrontado com elas automaticamente |
 | `config/garage.toml.j2` | modelo único da configuração; gerado por nó e por modo em `generated/` |
 | `scripts/` | `iniciar.sh` (monta o cluster), `reset.sh`, `modo.sh`, `particionar.sh`, `curar.sh` |
@@ -54,9 +54,9 @@ Ficam **fora do git** (no `.gitignore`): `.env` (segredos), `dados/` (discos dos
 
 ## 1. Resultados
 
-### Experimentos E1–E8 (execuções de referência de 25/10/2026, 5 repetições)
+### Experimentos E1–E9 (execuções de referência de 25/10/2026, 5 repetições)
 
-Placar das previsões: **31 de 36 confirmadas**. As refutações foram investigadas e registradas, nunca ajustadas
+Placar das previsões: **36 de 42 confirmadas**. As refutações foram investigadas e registradas, nunca ajustadas
 depois de rodar (o critério de cada previsão é definido no código antes da execução).
 
 | Exp. | O que mostra | Resultado principal | Previsões |
@@ -69,6 +69,7 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 | **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 96,4% disponível (timeouts só na janela de detecção); minoria 0/2 299 (nenhuma leitura desatualizada); detecção da partição ≈ 79 s; malha refeita ≈ 25 s após curar → **C em vez de A** | 5/5 |
 | **E7** Recuperação | o nó que volta recebe o que perdeu? anti-entropia e `repair` | sem `repair`: tabelas iguais em ~475 s e dados em ~1 075 s (+600 s de agendamento no código); com `repair`: ~34 s; estado final idêntico. **Refutada:** previsão de ~10 min para a convergência natural completa | 3/4 |
 | **E8** Coordenação e ordem | sem líder; PUTs concorrentes; layout versionado; `CreateBucket` concorrente | valor único em 250/250 pares (LWW), venceu o PUT que começou depois em 84%; `apply` com versão errada recusado; `CreateBucket` concorrente gerou 3 nomes duplicados e 17 buckets órfãos | 5/5 |
+| **E9** Ênfase A: modos sob partição | garage3 isolado por 120 s em cada modo; escrita pela maioria, leitura pelos dois lados, listagem e escrita pela minoria | minoria: `consistent` 0/2 313 respondidas (C); `degraded` e `dangerous` 100% respondidas e **100% desatualizadas** (A), garage3 congelado na versão do início da partição; escrita pela minoria só aceita em `dangerous`. **Refutada:** em `dangerous`, ~9% das leituras da maioria desatualizadas (previsto ≤ 5%) — a mesma taxa sem partição, efeito de W = 1/R = 1 sob carga | 5/6 |
 
 > **Correção de 25/10/2026:** no teste deste README descobrimos que o cliente boto3 fazia **uma nova tentativa**
 > depois de timeout ou de erro 503 (no botocore, `max_attempts: 1` = "1 *nova* tentativa"; "sem retries" é
@@ -90,7 +91,7 @@ Cada execução grava em `results/<experimento>/<data-hora>/`:
 
 `results/` **não vai para o git**. As execuções de referência estão na máquina da equipe e serão compartilhadas à
 parte: E1 `2026-10-25T00-47-26`, E2 `00-56-51`, E3 `01-11-14`, E4 `01-21-39`, E5 `14-21-46`, E6 `14-46-04`,
-E7 `07-38-20`, E8 `02-56-57`.
+E7 `07-38-20`, E8 `02-56-57`, E9 `16-03-06`.
 
 ---
 
@@ -213,6 +214,7 @@ repetições, **restaura o cluster no final mesmo se der erro** e imprime o plac
 | `labctl run E6` | ~14 min |
 | `labctl run E7` | **~1 h 53 min** (espera a convergência natural, até 25 min por ciclo) |
 | `labctl run E8` | ~3 min (sobe a versão do layout em 2 a cada execução; é esperado) |
+| `labctl run E9` | ~50 min (3 modos × 5 repetições; `--mode degraded` roda só um modo) |
 
 Para execuções longas, deixe a máquina sem outras cargas pesadas (as latências entram nos resultados).
 
@@ -247,6 +249,7 @@ Admin API e uma carga curta em `consistent` com 0 leituras desatualizadas.
 | `permission denied` no Docker | usuário fora do grupo `docker` → `sudo usermod -aG docker $USER` e entre de novo na sessão |
 | Após `mode set` ou restart, um nó vê só a si mesmo, ou escritas não chegam a uma réplica | `/health` 200 não garante a malha completa. O `labctl mode set` já espera todos verem todos; se reiniciou à mão, confira a coluna **vê UP** do `labctl status` e espere (o Garage tenta reconectar a cada 30 s) |
 | Logo após particionar, o nó isolado dá *timeout* em vez de "Could not reach quorum" | esperado: o Garage leva ~80 s para detectar a partição (medido no E6); depois disso a resposta passa a ser "Could not reach quorum of 2" |
+| Depois de uma partição **curta** (menos de ~80 s), o nó que voltou continua sem receber escritas por algum tempo | observado no E9 `--quick` (40 s de partição): o Garage ainda não tinha fechado a conexão, e as escritas seguintes não chegaram ao garage3 por mais de 10 s após curar. Para a demo, use partições acima de ~80 s ou espere a malha e alguns segundos antes de mostrar a convergência |
 | garage3 `unhealthy` durante a partição | esperado: o healthcheck usa a CLI, que não alcança o próprio nó isolado. Não afeta nada |
 | Experimento interrompido (Ctrl+C, erro) ou "pré-condição: …" | `labctl net heal --all` e depois `labctl status` |
 | `labctl status` mostra "layout: versão 0" / alerta de layout | o `iniciar.sh` não terminou → rode `make up` de novo (é idempotente) |
