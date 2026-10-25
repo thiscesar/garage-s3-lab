@@ -7,6 +7,7 @@ from importlib import import_module
 # nome → "módulo:Classe" (importados só quando usados)
 EXPERIMENTOS = {
     "E1": "lab.experiments.e1_topologia:E1",
+    "E2": "lab.experiments.e2_caminho:E2",
 }
 
 

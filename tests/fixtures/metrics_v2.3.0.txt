@@ -1,0 +1,12 @@
+# HELP rpc_request_counter Number of RPC requests emitted
+# TYPE rpc_request_counter counter
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_block/manager.rs/Rpc",to="0b63ad6b80851f29"} 10
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_block/manager.rs/Rpc",to="6cbb0b6ef73960c8"} 10
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_block/manager.rs/Rpc",to="760fb39ebdb45d2f"} 10
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_table/sync.rs/Rpc:object",to="0b63ad6b80851f29"} 1
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_table/sync.rs/Rpc:object",to="6cbb0b6ef73960c8"} 1
+rpc_request_counter{from="760fb39ebdb45d2f",rpc_endpoint="garage_table/table.rs/Rpc:object",to="0b63ad6b80851f29"} 46
+# TYPE block_bytes_written counter
+block_bytes_written 10486130
+# TYPE block_bytes_read counter
+block_bytes_read 20972260

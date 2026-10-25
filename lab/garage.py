@@ -10,6 +10,7 @@ CLI: `docker exec garageN /garage -h <id>@127.0.0.1:3901 ...`. Sem `-h`, a CLI u
 
 from __future__ import annotations
 
+import re
 import time
 
 import httpx
@@ -80,6 +81,33 @@ class AdminAPI:
 
     def fechar(self) -> None:
         self._http.close()
+
+
+_RE_RPC = re.compile(r"^rpc_request_counter\{(?P<rotulos>[^}]*)\}\s+(?P<valor>[0-9.eE+-]+)$")
+_RE_ROTULO = re.compile(r'(\w+)="([^"]*)"')
+
+
+def contadores_rpc(texto_metricas: str) -> dict[tuple[str, str, str], float]:
+    """`rpc_request_counter{from, rpc_endpoint, to}` → {(from, to, endpoint): valor}.
+
+    Cada nó só expõe os RPCs que ele emitiu (`from` = ele próprio).
+    """
+    contadores = {}
+    for linha in texto_metricas.splitlines():
+        m = _RE_RPC.match(linha.strip())
+        if m:
+            r = dict(_RE_ROTULO.findall(m.group("rotulos")))
+            contadores[(r.get("from", ""), r.get("to", ""), r.get("rpc_endpoint", ""))] = float(m.group("valor"))
+    return contadores
+
+
+def metrica(texto_metricas: str, nome: str) -> float | None:
+    """Valor de uma métrica Prometheus sem rótulos (ex.: `block_bytes_read`); None se ausente."""
+    for linha in texto_metricas.splitlines():
+        partes = linha.split()
+        if len(partes) == 2 and partes[0] == nome:
+            return float(partes[1])
+    return None
 
 
 def esperar_saude(nos: tuple[int, ...] = NOS, limite_s: float = 60, api: AdminAPI | None = None) -> dict[int, float]:

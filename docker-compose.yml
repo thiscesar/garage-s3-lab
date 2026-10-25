@@ -7,6 +7,8 @@ x-garage: &garage
   mem_limit: 128m
   restart: "no"                       # o laboratório decide quando um nó volta
   user: "${UID:?rode make env}:${GID:?rode make env}"   # dados/ com o usuário do host
+  environment:
+    RUST_LOG: "${RUST_LOG:-garage=info}"  # padrão da imagem; o E2 com LAB_DEBUG=1 usa garage=debug
   healthcheck:
     test: ["CMD", "/garage", "status"]  # forma exec: a imagem só tem o binário /garage
     interval: 5s
