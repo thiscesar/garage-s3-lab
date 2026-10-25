@@ -35,6 +35,10 @@ ARQ_PARES = DIR_GENERATED / "peers"
 TEMPLATE = RAIZ / "config" / "garage.toml.j2"
 
 MODOS = ("consistent", "degraded", "dangerous")
+# Quóruns (R, W) para replication_factor = 3. Fonte: doc Configuration (consistency_mode) e código v2.3.0
+# src/rpc/replication_mode.rs l. 41–55.
+N_REPLICAS = 3
+QUORUNS = {"consistent": (2, 2), "degraded": (1, 2), "dangerous": (1, 1)}
 NOS = (1, 2, 3)
 REDES_DO_LAB = ("t3_interna", "t3_clientes")
 SEGREDOS = ("RPC_SECRET", "ADMIN_TOKEN", "METRICS_TOKEN")
@@ -157,14 +161,18 @@ def _redes_docker_alheias() -> list[tuple[str, ipaddress.IPv4Network]]:
     """Sub-redes IPv4 das redes Docker do host que não são deste laboratório."""
     nomes = subprocess.run(
         ["docker", "network", "ls", "--format", "{{.Name}}"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.split()
     alheias = [n for n in nomes if n not in REDES_DO_LAB]
     if not alheias:
         return []
     saida = subprocess.run(
         ["docker", "network", "inspect", *alheias],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     redes = []
     for rede in json.loads(saida):
@@ -177,7 +185,7 @@ def _redes_docker_alheias() -> list[tuple[str, ipaddress.IPv4Network]]:
 
 def _rotas_fora_do_docker() -> list[tuple[str, ipaddress.IPv4Network]]:
     """Rotas IPv4 do host em interfaces que não são pontes do Docker (ex.: Wi-Fi, VPN)."""
-    saida = subprocess.run(["ip", "-4", "-o", "route"], capture_output=True, text=True).stdout
+    saida = subprocess.run(["ip", "-4", "-o", "route"], capture_output=True, text=True, check=False).stdout
     rotas = []
     for linha in saida.splitlines():
         partes = linha.split()
@@ -252,14 +260,16 @@ def renderizar(modo: str, env: dict[str, str] | None = None, destino: Path = DIR
     gerados = []
     for n in NOS:
         arq = destino / f"garage{n}.toml"
-        arq.write_text(template.render(
-            mode=modo,
-            rpc_ip=topo.ip_interno(n),
-            rpc_secret=env["RPC_SECRET"],
-            admin_token=env["ADMIN_TOKEN"],
-            metrics_token=env["METRICS_TOKEN"],
-            bootstrap_peers=pares,
-        ))
+        arq.write_text(
+            template.render(
+                mode=modo,
+                rpc_ip=topo.ip_interno(n),
+                rpc_secret=env["RPC_SECRET"],
+                admin_token=env["ADMIN_TOKEN"],
+                metrics_token=env["METRICS_TOKEN"],
+                bootstrap_peers=pares,
+            )
+        )
         gerados.append(arq)
     (destino / "MODE").write_text(modo + "\n")
     return gerados

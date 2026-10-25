@@ -1,17 +1,17 @@
-# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status.
+# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status, test, test-integration.
 SHELL   := /bin/bash
 PY      := .venv/bin/python
 COMPOSE := docker compose
 NOS     := garage1 garage2 garage3
 
-.PHONY: venv env up down reset status
+.PHONY: venv env up down reset status test test-integration
 
-## venv: cria .venv e instala o pacote lab (editável)
+## venv: cria .venv e instala o pacote lab (editável) com as ferramentas de teste
 venv: .venv/.instalado
 .venv/.instalado: pyproject.toml
 	python3 -m venv .venv
 	$(PY) -m pip install -q --upgrade pip
-	$(PY) -m pip install -q -e .
+	$(PY) -m pip install -q -e '.[dev]'
 	touch $@
 
 ## env: cria/completa o .env (segredos, UID/GID) e verifica colisão das faixas de rede
@@ -34,8 +34,14 @@ down:
 reset:
 	./scripts/reset.sh
 
-## status: contêineres, modo e visão do cluster pelo garage1
-status:
-	@$(COMPOSE) ps
-	@echo "modo: $$(cat generated/MODE 2>/dev/null || echo '?')"
-	@docker exec garage1 /garage status 2>/dev/null || echo "garage1 indisponível"
+## status: nós, rede, saúde, modo, quóruns e layout
+status: venv
+	@.venv/bin/labctl status
+
+## test: testes unitários, sem Docker
+test: venv
+	$(PY) -m pytest -m "not integration" -q
+
+## test-integration: smoke test com o cluster real no ar
+test-integration: venv
+	$(PY) -m pytest -m integration -q
