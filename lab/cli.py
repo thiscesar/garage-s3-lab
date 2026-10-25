@@ -284,6 +284,18 @@ def run(
     console.print(f"resultado em {journal.relativo(destino)}/summary.md")
 
 
+# ---------------------------------------------------------------- painel
+
+
+@app.command()
+def painel(porta: int = typer.Option(8080, "--port", help="porta local (escuta só em 127.0.0.1)")) -> None:
+    """Abre o painel web da demo em http://127.0.0.1:<porta>; Ctrl+C para sair."""
+    import uvicorn
+
+    console.print(f"painel em [bold]http://127.0.0.1:{porta}[/bold] (Ctrl+C para sair)")
+    uvicorn.run("painel.app:app", host="127.0.0.1", port=porta, log_level="warning")
+
+
 # ---------------------------------------------------------------- evidências
 
 

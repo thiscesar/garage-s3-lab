@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Garage S3</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Garage S3 — 3 nós</h1>
+      <div class="sub">Tema 3 · Ênfase A: modos de consistência · <span id="conexao" class="pill">conectando…</span></div>
+    </div>
+    <div id="banner-modo" class="banner">
+      <div class="modo" id="modo">—</div>
+      <div class="quorum" id="quorum">N=3 · R=? · W=?</div>
+      <div class="garantia" id="garantia">R + W &gt; N?</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="nos" id="nos"></section>
+
+    <section class="painel-controles">
+      <div class="grupo">
+        <h2>Rede e nós</h2>
+        <div class="linha">
+          <button data-acao="net" data-no="3" data-op="partition" class="perigo">Particionar g3</button>
+          <button data-acao="net" data-no="3" data-op="heal">Curar g3</button>
+        </div>
+        <div class="linha" id="botoes-nos"></div>
+        <div class="linha">
+          <button id="restaurar" class="secundario">Restaurar tudo</button>
+        </div>
+        <div class="nota">Restaurar: cura partições, religa nós parados e volta a consistent.</div>
+      </div>
+      <div class="grupo">
+        <h2>Modo de consistência</h2>
+        <div class="linha">
+          <select id="sel-modo"></select>
+          <button id="trocar-modo">Trocar modo</button>
+        </div>
+        <div class="nota">Reinicia os 3 nós em paralelo e espera a malha completa (~15–25 s).</div>
+      </div>
+      <div class="grupo">
+        <h2>Carga</h2>
+        <div class="linha">
+          <select id="sel-preset"></select>
+          <button id="iniciar-carga" class="ok">Iniciar</button>
+          <button id="parar-carga" class="secundario">Parar</button>
+        </div>
+        <div class="nota" id="desc-preset"></div>
+      </div>
+      <div class="grupo">
+        <h2>Anti-entropia (E7)</h2>
+        <div class="linha">
+          <button data-repair="tables" class="secundario">repair tables</button>
+          <button data-repair="blocks" class="secundario">repair blocks</button>
+        </div>
+        <div class="nota">Dispara o reparo em todos os nós; compare "objetos" e "disco" nos cartões.</div>
+      </div>
+      <div class="acao" id="acao"></div>
+    </section>
+
+    <section class="ao-vivo">
+      <div class="cabecalho-grafico">
+        <h2>Ao vivo — últimos 60 s</h2>
+        <div class="legenda">
+          <span><i class="ponto fresh"></i>atualizada / ok</span>
+          <span><i class="ponto stale"></i>desatualizada</span>
+          <span><i class="ponto error"></i>erro (timeout, sem quórum)</span>
+        </div>
+      </div>
+      <div class="grafico"><canvas id="linha-do-tempo"></canvas></div>
+      <table class="contadores">
+        <thead>
+          <tr><th>papel</th><th>operações (60 s)</th><th>disponibilidade</th><th>desatualizadas</th><th>versão</th></tr>
+        </thead>
+        <tbody id="contadores"></tbody>
+      </table>
+    </section>
+
+    <section class="eventos">
+      <div>
+        <h2>Ações (journal)</h2>
+        <ul id="journal"></ul>
+      </div>
+      <div>
+        <h2>Logs dos nós (último minuto)</h2>
+        <div id="logs"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

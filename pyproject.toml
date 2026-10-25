@@ -18,6 +18,8 @@ dependencies = [
     "scipy>=1.11",
     "matplotlib>=3.8",
     "pyyaml>=6",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +29,10 @@ dev = ["pytest>=8", "ruff>=0.6"]
 labctl = "lab.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["lab*"]
+include = ["lab*", "painel*"]
+
+[tool.setuptools.package-data]
+painel = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

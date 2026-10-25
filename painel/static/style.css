@@ -1,0 +1,96 @@
+/* Painel da demo: claro e com contraste alto (projetor). Cores das classes iguais às figuras (lab/plots.py). */
+:root {
+  --fundo: #f4f5f7;
+  --cartao: #ffffff;
+  --texto: #1a202c;
+  --suave: #4a5568;
+  --borda: #d5d9e0;
+  --fresh: #2f855a;
+  --stale: #dd8a1b;
+  --error: #c53030;
+  --consistent: #2b6cb0;
+  --degraded: #dd8a1b;
+  --dangerous: #c53030;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--cartao);
+  border-bottom: 1px solid var(--borda);
+}
+h1 { font-size: 22px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 8px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.sub { color: var(--suave); font-size: 13px; }
+.pill { padding: 1px 8px; border-radius: 10px; background: #e2e8f0; }
+.pill.ok { background: #c6f6d5; }
+.pill.falha { background: #fed7d7; }
+
+.banner { display: flex; align-items: baseline; gap: 18px; padding: 8px 16px; border-radius: 8px; color: #fff; background: #718096; }
+.banner .modo { font-size: 26px; font-weight: 700; }
+.banner .quorum { font-size: 18px; font-variant-numeric: tabular-nums; }
+.banner .garantia { font-size: 15px; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,.2); }
+.banner.consistent { background: var(--consistent); }
+.banner.degraded { background: var(--degraded); }
+.banner.dangerous { background: var(--dangerous); }
+
+main { padding: 14px 20px; display: grid; gap: 14px; }
+section { background: var(--cartao); border: 1px solid var(--borda); border-radius: 8px; padding: 12px 14px; }
+
+.nos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: none; border: none; padding: 0; }
+.no { background: var(--cartao); border: 2px solid var(--borda); border-radius: 8px; padding: 10px 12px; }
+.no.isolado { border-color: var(--stale); }
+.no.parado { border-color: var(--error); opacity: .75; }
+.no h3 { margin: 0 0 6px; font-size: 18px; display: flex; justify-content: space-between; }
+.no dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 14px; }
+.no dt { color: var(--suave); }
+.no dd { margin: 0; font-variant-numeric: tabular-nums; }
+.sim { color: var(--fresh); font-weight: 600; }
+.nao { color: var(--error); font-weight: 600; }
+
+.painel-controles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.grupo .linha { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.nota { font-size: 12px; color: var(--suave); }
+.acao { grid-column: 1 / -1; font-size: 14px; min-height: 1.4em; }
+.acao.erro { color: var(--error); }
+button, select {
+  font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--borda);
+  background: #edf2f7; cursor: pointer;
+}
+button:hover:not(:disabled) { filter: brightness(.95); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.perigo { background: #fed7d7; border-color: #feb2b2; }
+button.ok { background: #c6f6d5; border-color: #9ae6b4; }
+button.secundario { background: #fff; }
+
+.cabecalho-grafico { display: flex; justify-content: space-between; align-items: baseline; }
+.legenda { display: flex; gap: 14px; font-size: 13px; }
+.ponto { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.ponto.fresh { background: var(--fresh); }
+.ponto.stale { background: var(--stale); }
+.ponto.error { background: var(--error); }
+.grafico { position: relative; height: 260px; }
+
+table.contadores { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.contadores th, .contadores td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--borda); }
+.contadores td.alto { color: var(--stale); font-weight: 700; }
+.contadores td.baixo { color: var(--error); font-weight: 700; }
+
+.eventos { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+#journal { list-style: none; margin: 0; padding: 0; font-size: 13px; max-height: 220px; overflow: auto; }
+#journal li { padding: 2px 0; border-bottom: 1px dotted var(--borda); }
+#logs { font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+#logs b { display: block; margin-top: 4px; font-family: system-ui, sans-serif; }
+
+@media (max-width: 1100px) {
+  .nos, .painel-controles, .eventos { grid-template-columns: 1fr; }
+}

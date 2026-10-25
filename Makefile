@@ -1,15 +1,15 @@
-# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status, test, test-integration.
+# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status, test, test-integration, painel.
 SHELL   := /bin/bash
 PY      := .venv/bin/python
 COMPOSE := docker compose
 NOS     := garage1 garage2 garage3
 
-.PHONY: venv env up down reset status test test-integration
+.PHONY: venv env up down reset status test test-integration painel
 
 ## venv: cria .venv e instala o pacote lab (editável) com as ferramentas de teste
 venv: .venv/.instalado
 .venv/.instalado: pyproject.toml
-	python3 -m venv .venv
+	test -x $(PY) || python3 -m venv .venv   # recriar falha em Pythons que instalam os activate* só leitura
 	$(PY) -m pip install -q --upgrade pip
 	$(PY) -m pip install -q -e '.[dev]'
 	touch $@
@@ -45,3 +45,7 @@ test: venv
 ## test-integration: smoke test com o cluster real no ar
 test-integration: venv
 	$(PY) -m pytest -m integration -q
+
+## painel: painel web da demo em http://127.0.0.1:8080; Ctrl+C para sair
+painel: venv
+	.venv/bin/labctl painel

@@ -39,6 +39,7 @@ continua acessível ao cliente pela rede `clientes`.
 | Caminho | Conteúdo |
 |---|---|
 | `lab/` | biblioteca Python: configuração, Docker, Admin API do Garage, clientes S3, gerador de carga, oráculo, estatísticas, figuras, relatórios e a CLI `labctl` |
+| `painel/` | painel web da demo ao vivo (FastAPI + SSE; página em `painel/static/`, com o Chart.js 4.4.7 incluído para funcionar sem internet) |
 | `lab/experiments/` | um módulo por experimento (`e1_topologia.py` … `e9_modos.py`) e a classe base (pré-condição, repetições, manifest, restauração do cluster) |
 | `predicoes/` | previsões de cada experimento (`E1.yaml` … `E9.yaml`), com fontes; o resultado é confrontado com elas automaticamente |
 | `config/garage.toml.j2` | modelo único da configuração; gerado por nó e por modo em `generated/` |
@@ -193,6 +194,41 @@ docker exec cliente python /s3.py 3 get teste
 ```bash
 docker exec cliente python /s3.py 2 bench 20
 ```
+
+### Painel da demo
+
+```bash
+make painel
+```
+
+Abre em **http://127.0.0.1:8080** (só nesta máquina; `labctl painel --port 8090` usa outra porta; Ctrl+C para sair).
+Funciona sem internet. Mostra:
+
+- **cartões dos 3 nós:** contêiner, `/health`, se está na rede interna, quem ele vê como ativo, memória, disco de
+  `data/` e itens da tabela de objetos;
+- **banner do modo:** N, R, W e se R + W > N;
+- **controles:** particionar/curar o garage3, parar/ligar cada nó, trocar o modo (pede confirmação no próprio
+  botão), carga (presets A1, A2, A4), `repair tables`/`repair blocks` e "Restaurar tudo";
+- **ao vivo:** linha do tempo dos últimos 60 s, uma faixa por papel (verde = atualizada/ok, laranja =
+  desatualizada, vermelho = erro), com as ações marcadas, e contadores de disponibilidade, % de desatualizadas e
+  versão lida × confirmada;
+- **eventos:** ações registradas (journal) e o último minuto de log de cada nó.
+
+Uma ação por vez: enquanto uma troca de modo (~20 s) ou outra ação roda, os botões ficam desabilitados.
+
+**Roteiro da demo da Ênfase A (testado só pelo navegador):**
+1. Modo `degraded` → **Trocar modo** (clique duas vezes para confirmar) → espere a ação terminar (~20 s).
+2. Carga **A1** → **Iniciar**: as faixas ficam verdes.
+3. **Particionar g3:** a faixa "g3 leitura (minoria)" fica **laranja** na hora (responde, mas com a versão de antes
+   da partição; compare "versão" lida × confirmada). Em ~75 s os cartões mostram a detecção (g3 vê só a si mesmo).
+4. **Curar g3:** ~20 s depois, a faixa do g3 volta a verde. Os "objetos" do g3 ficam abaixo dos outros (chaves
+   escritas na partição); **repair tables** iguala as contagens (E7).
+5. Modo `consistent` → particionar de novo: a faixa do g3 fica **vermelha** (sem quórum: não responde). Até a
+   detecção, a leitura da maioria (g2) também pode falhar; depois volta a verde.
+6. **Curar g3**, **Parar** a carga e **Restaurar tudo**.
+
+Dica: faça partições de mais de ~80 s. Mais curtas que isso, o Garage ainda não fechou a conexão e o nó que volta
+demora a receber escritas (ver "Problemas comuns").
 
 ### Rodar os experimentos
 
