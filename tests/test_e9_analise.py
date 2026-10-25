@@ -58,14 +58,15 @@ def _experimento(tmp_path, eventos_por_modo, faltando_por_modo):
             "monitor": [{"t": 90.0, "no": 1, "ve_up": ["garage1", "garage2"]}],
             "verificacao": {
                 "ultima_versao_confirmada": 1500,
-                "quente_lida": {1: 1500, 2: 1500, 3: 1500},
-                "quente_atualizada_nos": [1, 2, 3],
+                "quente_lida": {"g1": 1500, "g2": 1500, "g3": 1500},
+                "quente_atualizada_nos": ["g1", "g2", "g3"],
                 "frias_da_particao": 240,
-                "frias_faltando": {3: faltando_por_modo[modo], 2: 0},
-                "frias_erros": {3: 0, 2: 0},
+                "frias_faltando": {"g3": faltando_por_modo[modo], "g2": 0},
+                "frias_erros": {"g3": 0, "g2": 0},
             },
         }
-    e.repeticoes = [{"rep": 0, "situacao": "ok", "resultado": {"ordem": list(rodadas), "rodadas": rodadas}}]
+    rep = {"rep": 0, "situacao": "ok", "resultado": {"ordem": list(rodadas), "rodadas": rodadas}}
+    e.repeticoes = [json.loads(json.dumps(rep))]  # como volta do manifest.json
     return e
 
 

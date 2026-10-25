@@ -57,4 +57,5 @@ def wilson(sucessos: int, total: int, z: float = 1.959963984540054) -> Proporcao
     den = 1 + z**2 / total
     centro = (p + z**2 / (2 * total)) / den
     meia = z * math.sqrt(p * (1 - p) / total + z**2 / (4 * total**2)) / den
-    return Proporcao(sucessos, total, p, (max(0.0, centro - meia), min(1.0, centro + meia)))
+    # o intervalo de Wilson contém p; min/max evitam que o arredondamento (1e-16) o deixe de fora em p = 0 ou 1
+    return Proporcao(sucessos, total, p, (max(0.0, min(p, centro - meia)), min(1.0, max(p, centro + meia))))

@@ -284,11 +284,12 @@ class E9(Experiment):
         )
         return {
             "ultima_versao_confirmada": ultima,
-            "quente_lida": {n: v for n, (v, _) in lida.items()},
-            "quente_atualizada_nos": sorted(n for n, (v, _) in lida.items() if v == ultima),
+            # chaves "gN" (texto) para valerem igual em memória e no manifest.json
+            "quente_lida": {f"g{n}": v for n, (v, _) in lida.items()},
+            "quente_atualizada_nos": sorted(f"g{n}" for n, (v, _) in lida.items() if v == ultima),
             "frias_da_particao": len(frias),
-            "frias_faltando": {n: len(v) for n, v in faltando.items()},
-            "frias_erros": erros,
+            "frias_faltando": {f"g{n}": len(v) for n, v in faltando.items()},
+            "frias_erros": {f"g{n}": v for n, v in erros.items()},
         }
 
     # ------------------------------------------------------------ análise
@@ -480,10 +481,10 @@ class E9(Experiment):
                         m,
                         v["rep"],
                         v["ultima_versao_confirmada"],
-                        ", ".join(f"g{n}={v['quente_lida'][n]}" for n in sorted(v["quente_lida"])),
+                        ", ".join(f"{n}={v['quente_lida'][n]}" for n in sorted(v["quente_lida"])),
                         v["frias_da_particao"],
-                        v["frias_faltando"].get(3, v["frias_faltando"].get("3")),
-                        v["frias_faltando"].get(2, v["frias_faltando"].get("2")),
+                        v["frias_faltando"]["g3"],
+                        v["frias_faltando"]["g2"],
                         sum(v["frias_erros"].values()),
                     ]
                 )
@@ -566,7 +567,7 @@ class E9(Experiment):
                 ),
             }
         )
-        falt = {m: sum(v["frias_faltando"].get(3, 0) for v in verif[m]) for m in self.modos}
+        falt = {m: sum(v["frias_faltando"]["g3"] for v in verif[m]) for m in self.modos}
         p6 = all(all(tempos[m]["p6_ok"]) for m in self.modos) and all(
             falt[m] == 0 if m == "consistent" else falt[m] > 0 for m in self.modos
         )

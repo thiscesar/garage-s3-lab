@@ -47,3 +47,12 @@ def test_wilson_bate_com_scipy(k, n):
 def test_wilson_rejeita_entradas_invalidas(k, n):
     with pytest.raises(ValueError):
         wilson(k, n)
+
+
+def test_wilson_contem_p_nos_extremos():
+    # sem a proteção, o limite caía 1e-16 para dentro (ex.: n = 3) e a barra de erro ficava negativa
+    for n in range(1, 500):
+        assert wilson(n, n).ic95[1] == 1.0
+        assert wilson(0, n).ic95[0] == 0.0
+        w = wilson(n // 2, n)
+        assert w.ic95[0] <= w.p <= w.ic95[1]
