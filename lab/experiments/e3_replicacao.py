@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import hashlib
 import os
-import subprocess
 import threading
 import time
 import uuid
 
 from lab import cluster, garage, plots, stats
 from lab import s3 as lab_s3
-from lab.config import MODOS, NOS, RAIZ
+from lab.config import MODOS, NOS
 from lab.experiments.base import Experiment
 from lab.report import tabela_md
 
@@ -29,12 +28,6 @@ SONDAGEM_S = 0.005
 LIMITE_PROPAGACAO_S = 5.0
 
 
-def _du_data() -> dict[str, int]:
-    alvos = [str(RAIZ / "dados" / f"g{n}" / "data") for n in NOS]
-    saida = subprocess.run(["du", "-sb", *alvos], capture_output=True, text=True, check=True).stdout
-    return {f"garage{n}": int(linha.split()[0]) for n, linha in zip(NOS, saida.splitlines(), strict=True)}
-
-
 class E3(Experiment):
     nome = "E3"
     descricao = "Replicação"
@@ -42,10 +35,10 @@ class E3(Experiment):
     def _replicacao(self, i: int, clientes: dict) -> dict:
         dados = os.urandom(OBJETO_GRANDE)
         sha = hashlib.sha256(dados).hexdigest()
-        antes = _du_data()
+        antes = cluster.uso_disco_dados()
         res = lab_s3.put(clientes[1], 1, f"e3/grande/{uuid.uuid4().hex[:8]}", dados)
         time.sleep(2.0)  # a 3ª réplica recebe em segundo plano (C5)
-        depois = _du_data()
+        depois = cluster.uso_disco_dados()
         lidos = {}
         for n in NOS:
             g = lab_s3.get(clientes[n], n, res.chave)

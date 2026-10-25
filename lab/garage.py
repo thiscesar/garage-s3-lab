@@ -73,6 +73,11 @@ class AdminAPI:
         """Dispara um reparo (ex.: "tables", "blocks") nos nós `alvo` ("*" = todos)."""
         return self._json("POST", n, "LaunchRepairOperation", params={"node": alvo}, json={"repairType": tipo})
 
+    def estatisticas_no(self, n: int) -> dict:
+        """GetNodeStatistics do próprio nó n, já interpretado por `ler_estatisticas_no` (tabelas e blocos)."""
+        r = self._json("GET", n, "GetNodeStatistics", params={"node": "self"})
+        return ler_estatisticas_no(next(iter(r["success"].values()))["freeform"])
+
     def metrics(self, n: int) -> str:
         resp = self._pedir("GET", n, "/metrics", self._token_metricas)
         if resp.status_code != 200:
@@ -108,6 +113,32 @@ def metrica(texto_metricas: str, nome: str) -> float | None:
         if len(partes) == 2 and partes[0] == nome:
             return float(partes[1])
     return None
+
+
+def ler_estatisticas_no(freeform: str) -> dict:
+    """Texto de GetNodeStatistics → {"tabelas": {nome: {Items, MklItems, MklTodo, InsQueue, GcTodo}}, "blocos": {...}}."""
+    tabelas, blocos, em_tabelas = {}, {}, False
+    for linha in freeform.splitlines():
+        if linha.strip().startswith("Table") and "Items" in linha:
+            em_tabelas = True
+            continue
+        if em_tabelas:
+            m = re.match(r"\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$", linha)
+            if m:
+                tabelas[m.group(1)] = dict(
+                    zip(("Items", "MklItems", "MklTodo", "InsQueue", "GcTodo"), map(int, m.groups()[1:]), strict=True)
+                )
+                continue
+            em_tabelas = False
+        for chave, rotulo in (
+            ("rc", "number of RC entries"),
+            ("resync", "resync queue length"),
+            ("erros", "blocks with resync errors"),
+        ):
+            m = re.search(rf"{rotulo}:\s+(\d+)", linha)
+            if m:
+                blocos[chave] = int(m.group(1))
+    return {"tabelas": tabelas, "blocos": blocos}
 
 
 def esperar_saude(nos: tuple[int, ...] = NOS, limite_s: float = 60, api: AdminAPI | None = None) -> dict[int, float]:

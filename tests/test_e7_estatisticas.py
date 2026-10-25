@@ -3,7 +3,8 @@
 import copy
 from pathlib import Path
 
-from lab.experiments.e7_recuperacao import E7, ler_estatisticas_no
+from lab.experiments.e7_recuperacao import E7
+from lab.garage import ler_estatisticas_no
 
 AMOSTRA = (Path(__file__).parent / "fixtures" / "node_statistics_v2.3.0.txt").read_text()
 

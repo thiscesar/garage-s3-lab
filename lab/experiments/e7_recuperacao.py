@@ -13,14 +13,12 @@ zeradas, mesmas entradas de blocos e fila de resync zerada; e `du -sb` de data/ 
 from __future__ import annotations
 
 import os
-import re
-import subprocess
 import time
 import uuid
 
 from lab import cluster, garage, plots, stats
 from lab import s3 as lab_s3
-from lab.config import NOS, RAIZ
+from lab.config import NOS
 from lab.experiments.base import Experiment
 from lab.report import tabela_md
 
@@ -28,49 +26,13 @@ TABELAS = ("object", "version", "block_ref")
 PEQUENOS, COM_BLOCO = 150, 50
 
 
-def ler_estatisticas_no(freeform: str) -> dict:
-    """Texto de GetNodeStatistics → {"tabelas": {nome: {Items, MklItems, MklTodo, InsQueue, GcTodo}}, "blocos": {...}}."""
-    tabelas, blocos, em_tabelas = {}, {}, False
-    for linha in freeform.splitlines():
-        if linha.strip().startswith("Table") and "Items" in linha:
-            em_tabelas = True
-            continue
-        if em_tabelas:
-            m = re.match(r"\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$", linha)
-            if m:
-                tabelas[m.group(1)] = dict(
-                    zip(("Items", "MklItems", "MklTodo", "InsQueue", "GcTodo"), map(int, m.groups()[1:]), strict=True)
-                )
-                continue
-            em_tabelas = False
-        for chave, rotulo in (
-            ("rc", "number of RC entries"),
-            ("resync", "resync queue length"),
-            ("erros", "blocks with resync errors"),
-        ):
-            m = re.search(rf"{rotulo}:\s+(\d+)", linha)
-            if m:
-                blocos[chave] = int(m.group(1))
-    return {"tabelas": tabelas, "blocos": blocos}
-
-
-def _du() -> dict[str, int]:
-    alvos = [str(RAIZ / "dados" / f"g{n}" / "data") for n in NOS]
-    saida = subprocess.run(["du", "-sb", *alvos], capture_output=True, text=True, check=True).stdout
-    return {f"garage{n}": int(linha.split()[0]) for n, linha in zip(NOS, saida.splitlines(), strict=True)}
-
-
 class E7(Experiment):
     nome = "E7"
     descricao = "Recuperação"
 
     def _estado(self) -> dict:
-        por_no = {}
-        for n in NOS:
-            r = self.api._json("GET", n, "GetNodeStatistics", params={"node": "self"})
-            freeform = next(iter(r["success"].values()))["freeform"]
-            por_no[f"garage{n}"] = ler_estatisticas_no(freeform)
-        return {"nos": por_no, "du": _du()}
+        por_no = {f"garage{n}": self.api.estatisticas_no(n) for n in NOS}
+        return {"nos": por_no, "du": cluster.uso_disco_dados()}
 
     @staticmethod
     def convergido(estado: dict) -> tuple[bool, list[str]]:

@@ -6,6 +6,7 @@ assim a CLI mantém o valor didático dos scripts (cada linha, um conceito).
 
 from __future__ import annotations
 
+import subprocess
 import threading
 from collections.abc import Callable
 from datetime import datetime
@@ -16,7 +17,7 @@ from docker.errors import NotFound
 from docker.models.containers import Container
 
 from lab import journal
-from lab.config import NOS, Topologia
+from lab.config import NOS, RAIZ, Topologia
 
 REDE_INTERNA = "t3_interna"
 SERVICOS = ("garage1", "garage2", "garage3", "cliente")
@@ -93,6 +94,13 @@ def memoria(nome_servico: str) -> int | None:
     detalhes = m.get("stats", {})
     cache = detalhes.get("inactive_file", detalhes.get("total_inactive_file", 0))
     return m["usage"] - cache
+
+
+def uso_disco_dados() -> dict[str, int]:
+    """Bytes em `dados/gN/data` de cada nó (`du -sb`): blocos de dados replicados (E3, E7, painel)."""
+    alvos = [str(RAIZ / "dados" / f"g{n}" / "data") for n in NOS]
+    saida = subprocess.run(["du", "-sb", *alvos], capture_output=True, text=True, check=True).stdout
+    return {f"garage{n}": int(linha.split()[0]) for n, linha in zip(NOS, saida.splitlines(), strict=True)}
 
 
 # ---------------------------------------------------------------- ações
