@@ -6,6 +6,7 @@ assim a CLI mantém o valor didático dos scripts (cada linha, um conceito).
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from functools import cache
@@ -110,11 +111,19 @@ def ligar(n: int) -> None:
 
 
 def reiniciar(nos: tuple[int, ...] = NOS) -> None:
+    """Reinicia os nós **em paralelo**.
+
+    Em sequência, um nó que volta antes de o outro cair marca o par como desconectado e só tenta de novo
+    30 s depois (peering.rs l. 24): a malha completa levava ~30–60 s. Em paralelo, ~10 s (medido).
+    """
     nomes = " ".join(nome(n) for n in nos)
-    eco(f"docker restart {nomes}")
-    for n in nos:
-        container(n).restart()
-    journal.registrar("node restart", {"nos": list(nos)})
+    eco(f"docker restart {nomes}   # em paralelo")
+    threads = [threading.Thread(target=lambda n=n: container(n).restart()) for n in nos]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    journal.registrar("node restart", {"nos": list(nos), "paralelo": True})
 
 
 def particionar(n: int) -> bool:
@@ -150,3 +159,9 @@ def executar(n: int, args: list[str]) -> tuple[int, str]:
 
 def logs(nome_servico: str, desde: datetime | None = None, ate: datetime | None = None) -> str:
     return container(nome_servico).logs(since=desde, until=ate, timestamps=True).decode(errors="replace")
+
+
+def executar_servico(nome_servico: str, args: list[str]) -> str:
+    """Roda um comando num contêiner do laboratório pelo nome (ex.: "cliente") e devolve stdout + stderr."""
+    resultado = container(nome_servico).exec_run(args)
+    return (resultado.output or b"").decode(errors="replace")

@@ -54,3 +54,33 @@ def barras_com_erro(
     ax.set_title(titulo)
     ax.set_ylabel(eixo_y)
     return fig
+
+
+def barras_agrupadas(
+    grupos: list[str],
+    series: dict[str, tuple[list[float], list[float]]],
+    titulo: str,
+    eixo_y: str,
+    cores: dict[str, str] | None = None,
+):
+    """Barras agrupadas: `series` = {nome: (valores por grupo, erros por grupo)}."""
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(7, 3.8))
+    largura = 0.8 / max(1, len(series))
+    x = np.arange(len(grupos))
+    for k, (nome, (valores, erros)) in enumerate(series.items()):
+        ax.bar(
+            x + (k - (len(series) - 1) / 2) * largura,
+            valores,
+            largura,
+            yerr=erros,
+            capsize=4,
+            label=nome,
+            color=(cores or {}).get(nome),
+        )
+    ax.set_xticks(x, grupos)
+    ax.set_title(titulo)
+    ax.set_ylabel(eixo_y)
+    ax.legend()
+    return fig

@@ -128,21 +128,61 @@ def esperar_saude(nos: tuple[int, ...] = NOS, limite_s: float = 60, api: AdminAP
     return tempos
 
 
+def malha(api: AdminAPI | None = None, nos: tuple[int, ...] = NOS) -> dict[int, set[str] | None]:
+    """Quem cada nó vê como ativo (`isUp` em GetClusterStatus); None se o nó não responde."""
+    api = api or AdminAPI()
+    visoes: dict[int, set[str] | None] = {}
+    for n in nos:
+        try:
+            st = api.cluster_status(n)
+            visoes[n] = {x["hostname"] for x in st["nodes"] if x.get("isUp") and x.get("hostname")}
+        except ErroGarage:
+            visoes[n] = None
+    return visoes
+
+
+def esperar_malha(
+    nos: tuple[int, ...] = NOS, limite_s: float = 120, leituras_estaveis: int = 2, api: AdminAPI | None = None
+) -> float:
+    """Espera a malha completa: cada nó vê todos os `nos` como ativos, em `leituras_estaveis` leituras seguidas.
+
+    o /health pode dar 200 com o nó vendo só a si mesmo logo após um restart, e a reconexão leva
+    de segundos a dezenas de segundos (novas tentativas a cada 30 s, peering.rs l. 24). Devolve o tempo (s).
+    """
+    api = api or AdminAPI()
+    esperados = {f"garage{n}" for n in nos}
+    inicio, seguidas = time.monotonic(), 0
+    while True:
+        visoes = malha(api, nos)
+        seguidas = seguidas + 1 if all(v == esperados for v in visoes.values()) else 0
+        if seguidas >= leituras_estaveis:
+            return time.monotonic() - inicio
+        if time.monotonic() - inicio > limite_s:
+            detalhe = "; ".join(f"garage{n} vê {sorted(v) if v is not None else '—'}" for n, v in visoes.items())
+            raise ErroGarage(f"malha incompleta após {limite_s:.0f} s: {detalhe}")
+        time.sleep(1.0)
+
+
 def definir_modo(modo: str, limite_s: float = 60) -> dict[int, float]:
     """Troca o consistency_mode: renderiza, reinicia os 3 nós e espera /health = 200.
 
-    A reconexão após o restart depende de `bootstrap_peers`. Devolve o tempo até cada nó responder 200.
+    A reconexão após o restart depende de `bootstrap_peers`. Depois do /health, espera a malha
+    completa. Devolve o tempo até cada nó responder 200.
     """
     cluster.eco(f"python -m lab.config render --mode {modo}")
     renderizar(modo)
     t0 = time.monotonic()
     cluster.reiniciar(NOS)
+    t_restart = time.monotonic() - t0
     tempos = esperar_saude(NOS, limite_s)
+    t_malha = esperar_malha(NOS, limite_s=max(limite_s, 120))
     journal.registrar(
         "mode set",
         {"modo": modo},
         {
+            "s_restart": round(t_restart, 2),
             "s_apos_restart_ate_health_200": {f"garage{n}": round(t, 2) for n, t in tempos.items()},
+            "s_ate_malha_completa": round(t_malha, 2),
             "total_s": round(time.monotonic() - t0, 2),
         },
     )
@@ -167,6 +207,7 @@ def restaurar(limite_s: float = 90) -> dict:
         feito["modo"] = "consistent"
     else:
         esperar_saude(NOS, limite_s)
+        feito["s_ate_malha_completa"] = round(esperar_malha(NOS, limite_s=max(limite_s, 120)), 2)
     journal.registrar("restaurar", {}, feito)
     return feito
 

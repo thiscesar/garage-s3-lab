@@ -115,6 +115,11 @@ class Experiment:
                 problemas.append(f"garage{n}: /health ≠ 200")
         if modo_atual() != self.modo:
             problemas.append(f"modo atual {modo_atual()!r}, esperado {self.modo!r}")
+        if not problemas:
+            try:
+                garage.esperar_malha(NOS, limite_s=60, api=self.api)  # todos veem todos
+            except garage.ErroGarage as e:
+                problemas.append(str(e))
         if problemas:
             raise PrecondicaoFalhou("; ".join(problemas))
 

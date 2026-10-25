@@ -8,6 +8,7 @@ from importlib import import_module
 EXPERIMENTOS = {
     "E1": "lab.experiments.e1_topologia:E1",
     "E2": "lab.experiments.e2_caminho:E2",
+    "E3": "lab.experiments.e3_replicacao:E3",
 }
 
 
