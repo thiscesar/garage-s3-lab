@@ -169,10 +169,10 @@ class Workload:
             for sink in self.sinks:
                 sink(evento)
 
-    def _evento(self, op: str, no: int, chave: str, res: lab_s3.Resultado) -> Evento:
+    def _evento(self, op: str, no: int, chave: str, res: lab_s3.Resultado, fase: str) -> Evento:
         return {
             **self.contexto,
-            "phase": self._fase,
+            "phase": fase,  # fase no INÍCIO da operação
             "op": op,
             "node": no,
             "key": chave,
@@ -196,12 +196,13 @@ class Workload:
             chave = f"{chave_ou_prefixo}g{no}-{i}" if frias else chave_ou_prefixo
             versao = self._proxima_versao(chave)
             corpo = json.dumps({"v": versao, "writer": lado, "node": no, "t": round(self.agora(), 4)}).encode()
+            fase = self._fase
             self.oraculo.inicio_escrita(chave, versao, lado)
             res = lab_s3.put(s3, no, chave, corpo, {"version": str(versao)})
             self.oraculo.fim_escrita(chave, versao, res.t_fim, res.ok)
             if frias and res.ok:
                 self.chaves_frias.append(chave)
-            evento = self._evento("PUT", no, chave, res)
+            evento = self._evento("PUT", no, chave, res, fase)
             evento["version_written"] = versao
             self._emitir(evento)
             self._despachar_leituras()
@@ -209,8 +210,9 @@ class Workload:
     def _leitor(self, no: int, chave: str, taxa: float) -> None:
         s3 = lab_s3.cliente_s3(no, connect_timeout=self.config.connect_timeout, read_timeout=self.config.read_timeout)
         for _ in self._ritmo(taxa):
+            fase = self._fase
             res = lab_s3.get(s3, no, chave)
-            evento = self._evento("GET", no, chave, res)
+            evento = self._evento("GET", no, chave, res, fase)
             evento["_res"] = res
             with self._lock_leituras:
                 self._leituras_pendentes.append(evento)

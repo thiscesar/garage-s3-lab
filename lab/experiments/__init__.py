@@ -13,6 +13,7 @@ EXPERIMENTOS = {
     "E5": "lab.experiments.e5_falha_quorum:E5",
     "E6": "lab.experiments.e6_particao:E6",
     "E7": "lab.experiments.e7_recuperacao:E7",
+    "E8": "lab.experiments.e8_coordenacao:E8",
 }
 
 

@@ -114,3 +114,18 @@ def test_versao_duplicada_e_rejeitada():
     o = oraculo_com((1, 0.0, 1.0, True))
     with pytest.raises(ValueError):
         o.inicio_escrita(K, 1, t_inicio=2.0)
+
+
+def test_dois_escritores_concorrentes_qualquer_ordem_e_fresh():
+    # v5 via garage3 em [0.40, 0.43]; v6 via garage1 em [0.42, 0.44] (concorrentes; LWW pode manter a 5)
+    o = oraculo_com((5, 0.40, 0.43, True), (6, 0.42, 0.44, True))
+    assert o.classificar(K, ts=0.50, te=0.51, versao_lida=5).classe == "fresh"
+    assert o.classificar(K, ts=0.50, te=0.51, versao_lida=6).classe == "fresh"
+
+
+def test_escrita_que_sucede_a_lida_torna_stale_mesmo_com_dois_escritores():
+    # v5 termina em 0.43; v7 começa em 0.45 (depois) e é confirmada em 0.47 → ler 5 em 0.50 é stale
+    o = oraculo_com((5, 0.40, 0.43, True), (6, 0.42, 0.44, True), (7, 0.45, 0.47, True))
+    c = o.classificar(K, ts=0.50, te=0.51, versao_lida=5)
+    assert (c.classe, c.lag_versions) == ("stale", 1)
+    assert c.lag_ms == pytest.approx(30.0)

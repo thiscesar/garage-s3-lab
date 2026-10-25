@@ -150,6 +150,13 @@ def curar(n: int, topo: Topologia | None = None) -> bool:
 # ---------------------------------------------------------------- execução e logs
 
 
+def executar_com_erro(n: int, args: list[str]) -> tuple[int, str, str]:
+    """Como `executar`, mas devolve também o stderr: (código, stdout, stderr)."""
+    resultado = container(n).exec_run(args, demux=True)
+    saida, erro = resultado.output if resultado.output else (None, None)
+    return resultado.exit_code, (saida or b"").decode(errors="replace"), (erro or b"").decode(errors="replace")
+
+
 def executar(n: int, args: list[str]) -> tuple[int, str]:
     """Roda um comando no contêiner do nó (forma exec: a imagem só tem /garage). Retorna (código, stdout)."""
     resultado = container(n).exec_run(args, demux=True)

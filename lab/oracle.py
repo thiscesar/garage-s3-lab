@@ -7,8 +7,12 @@ escritas deve devolver o último valor escrito; uma leitura concorrente pode dev
 Para uma leitura no intervalo [ts, te] que devolveu a versão r:
 - acked_max(ts)   = maior versão cujo PUT foi confirmado antes de ts;
 - started_max(te) = maior versão cujo PUT começou antes de te;
-- fresh   se r ≥ acked_max(ts);
-- stale   se r < acked_max(ts) (lag_versions = acked_max − r; lag_ms = ts − confirmação da 1ª versão > r);
+- stale   se existe escrita w confirmada antes de ts que **começou depois de a escrita de r terminar**
+          (w sucede a escrita lida em tempo real). lag_versions = nº dessas escritas;
+          lag_ms = ts − a 1ª confirmação entre elas;
+- fresh   caso contrário (inclui ler uma versão cuja escrita foi concorrente com a última confirmada:
+          escritas concorrentes podem ser serializadas em qualquer ordem, ex.: LWW entre dois escritores).
+Com um único escritor (escritas sequenciais) isso equivale a "r < acked_max(ts)".
 - anomaly se r > started_max(te) ou se r nunca foi escrita (indica bug do laboratório);
 - error   se houve timeout ou erro HTTP.
 `NoSuchKey` = versão 0: fresh sem escrita confirmada; stale com `motivo: nosuchkey` com escrita confirmada.
@@ -112,15 +116,19 @@ class Oraculo:
             return Classificacao(
                 "anomaly", "versão começou depois da leitura", acked_max=acked_max, started_max=started_max
             )
-        if r >= acked_max:
+        # Escritas confirmadas antes de ts que sucedem (em tempo real) a escrita lida: provam que r está superada.
+        if r == 0:
+            sucessoras = confirmadas  # nada lido: qualquer escrita confirmada antes de ts supera
+        else:
+            fim_lida = next(e for e in escritas if e.versao == r).t_fim
+            sucessoras = [e for e in confirmadas if fim_lida is not None and e.t_inicio > fim_lida]
+        if not sucessoras:
             return Classificacao("fresh", motivo, acked_max=acked_max, started_max=started_max)
-
-        proxima = min((e for e in confirmadas if e.versao > r), key=lambda e: e.versao)
         return Classificacao(
             "stale",
             motivo,
-            lag_versions=acked_max - r,
-            lag_ms=(ts - proxima.t_fim) * 1000,
+            lag_versions=len(sucessoras),
+            lag_ms=(ts - min(e.t_fim for e in sucessoras)) * 1000,
             acked_max=acked_max,
             started_max=started_max,
         )

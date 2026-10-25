@@ -227,9 +227,11 @@ def cli(n: int, *args: str) -> str:
     """Roda `/garage -h <id>@127.0.0.1:3901 <args>` no nó n e devolve o stdout (logs vão para o stderr)."""
     id_no = node_id(n).split("@", 1)[0]
     comando = ["/garage", "-h", f"{id_no}@127.0.0.1:{PORTA_RPC}", *args]
-    codigo, saida = cluster.executar(n, comando)
+    codigo, saida, erro = cluster.executar_com_erro(n, comando)
     if codigo != 0:
-        raise ErroGarage(f"garage{n}: `garage {' '.join(args)}` falhou (código {codigo})")
+        linhas = [x for x in erro.splitlines() if " INFO " not in x and x.strip()]
+        detalhe = "\n".join(linhas)[-500:]
+        raise ErroGarage(f"garage{n}: `garage {' '.join(args)}` falhou (código {codigo}): {detalhe}")
     return saida
 
 

@@ -57,9 +57,10 @@ class E6(Experiment):
             w.fase = "baseline"
             w.iniciar()
             time.sleep(baseline)
-            marcos["partition_at"] = round(w.agora(), 2)
-            w.fase = "partition"
+            marcos["partition_start"] = round(w.agora(), 3)  # antes do disconnect
             cluster.particionar(3)
+            marcos["partition_at"] = round(w.agora(), 3)  # depois de o disconnect terminar
+            w.fase = "partition"
             self.evidencia(
                 f"rep{i}_status_inicio_particao.txt",
                 "GetClusterStatus garage1 e garage3 (logo após particionar)",
@@ -71,9 +72,10 @@ class E6(Experiment):
                 "GetClusterStatus garage1 e garage3 (fim da partição)",
                 lambda: {n: self.api.cluster_status(n) for n in (1, 3)},
             )
-            marcos["heal_at"] = round(w.agora(), 2)
-            w.fase = "heal"
+            marcos["heal_start"] = round(w.agora(), 3)  # antes do connect
             cluster.curar(3)
+            marcos["heal_at"] = round(w.agora(), 3)
+            w.fase = "heal"
             t_malha = garage.esperar_malha(limite_s=180, api=self.api)
             marcos["converged_at"] = round(w.agora(), 2)
             time.sleep(10)
@@ -98,8 +100,19 @@ class E6(Experiment):
         for linha in arq.read_text().splitlines():
             ev = json.loads(linha)
             lado = LADOS.get(ev["node"], str(ev["node"]))
+            # fase pelo intervalo inteiro da operação; quem atravessa uma fronteira vai para "transicao"
+            ts, te = ev["t_start"], ev["t_end"]
+            if te < marcos["partition_start"]:
+                fase = "baseline"
+            elif ts >= marcos["partition_at"] and te < marcos["heal_start"]:
+                fase = "partition"
+            elif ts >= marcos["heal_at"]:
+                fase = "heal"
+            else:
+                fase = "transicao"
+            ev["phase"] = fase
             d = res.setdefault(
-                f"{ev['phase']}|{lado}|{ev['op']}",
+                f"{fase}|{lado}|{ev['op']}",
                 {"tentativas": 0, "ok": 0, "timeout": 0, "quorum": 0, "outro_erro": 0, "stale": 0, "lat_ms": []},
             )
             d["tentativas"] += 1
@@ -111,6 +124,10 @@ class E6(Experiment):
                     d["stale"] += 1
                 if ev["phase"] == "heal" and lado == "minoria" and prim_ok_min_pos_cura is None:
                     prim_ok_min_pos_cura = ev["t_end"] - marcos["heal_at"]
+            elif erro.startswith("NoSuchKey"):
+                d["ok"] += 1  # o nó respondeu (chave ainda sem escrita): disponível
+                d.setdefault("nosuchkey", 0)
+                d["nosuchkey"] += 1
             elif "Could not reach quorum" in erro:
                 d["quorum"] += 1
                 if ev["phase"] == "partition" and lado == "minoria":
@@ -204,8 +221,8 @@ class E6(Experiment):
             for o in ("PUT", "GET")
             for k in ("timeout", "quorum", "outro_erro")
         )
-        lat_maj_base = stats.resumir(lat.get("baseline|maioria|GET", [0])).p95
-        lat_maj_part = stats.resumir(lat.get("partition|maioria|GET", [0])).p95
+        lat_maj_base = stats.resumir(lat.get("baseline|maioria|GET") or [0]).p95
+        lat_maj_part = stats.resumir(lat.get("partition|maioria|GET") or [0]).p95
 
         fases = ["baseline", "partition", "heal"]
         series = {
