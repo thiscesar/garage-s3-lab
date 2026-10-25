@@ -1,10 +1,10 @@
-# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status, test, test-integration, painel.
+# Laboratório Garage S3. Alvos: venv, env, up, down, reset, status, test, test-integration, painel, report, all-experiments.
 SHELL   := /bin/bash
 PY      := .venv/bin/python
 COMPOSE := docker compose
 NOS     := garage1 garage2 garage3
 
-.PHONY: venv env up down reset status test test-integration painel
+.PHONY: venv env up down reset status test test-integration painel report all-experiments
 
 ## venv: cria .venv e instala o pacote lab (editável) com as ferramentas de teste
 venv: .venv/.instalado
@@ -49,3 +49,11 @@ test-integration: venv
 ## painel: painel web da demo em http://127.0.0.1:8080; Ctrl+C para sair
 painel: venv
 	.venv/bin/labctl painel
+
+## report: copia as execuções de referência para results/final/ e gera results/RELATORIO_DADOS.md
+report: venv
+	.venv/bin/labctl report
+
+## all-experiments: E1 a E9 em sequência (~4,5 h; QUICK=1 roda todos em --quick, ~25 min); para no 1º erro
+all-experiments: venv
+	for e in E1 E2 E3 E4 E5 E6 E7 E8 E9; do .venv/bin/labctl run $$e $(if $(QUICK),--quick,) || exit 1; done

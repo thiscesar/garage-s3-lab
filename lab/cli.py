@@ -35,6 +35,9 @@ console = Console()
 cluster.definir_eco(lambda msg: console.print(f"[green]+ {msg}[/green]", highlight=False))
 
 NO = typer.Argument(..., min=1, max=3, help="nó: 1, 2 ou 3")
+USAR = typer.Option(
+    [], "--usar", help="escolhe a execução de um experimento, ex.: --usar E5=2026-10-25T14-21-46 (repetível)"
+)
 
 
 def _falhar(msg: str) -> None:
@@ -282,6 +285,33 @@ def run(
         cor = {"confirmada": "green", "refutada": "red"}.get(r["situacao"], "yellow")
         console.print(f"  {r['id']}: [{cor}]{r['situacao']}[/{cor}]")
     console.print(f"resultado em {journal.relativo(destino)}/summary.md")
+
+
+# ---------------------------------------------------------------- relatório
+
+
+@app.command()
+def report(
+    usar: list[str] = USAR,
+) -> None:
+    """Copia as execuções de referência para results/final/ e gera results/RELATORIO_DADOS.md."""
+    from lab import report as rel
+    from lab.journal import DIR_RESULTS
+
+    escolhas = {}
+    for item in usar:
+        exp, _, ts = item.partition("=")
+        if not ts:
+            _falhar(f"--usar espera EXP=DATA-HORA, recebi {item!r}")
+        escolhas[exp] = ts
+    try:
+        arq = rel.gerar_relatorio(DIR_RESULTS, escolhas)
+    except ValueError as e:
+        _falhar(str(e))
+    for exp, d in rel.escolher_referencias(DIR_RESULTS, escolhas).items():
+        console.print(f"{exp}: {d.name if d else '[red]sem execução válida[/red]'}")
+    journal.registrar("report", {"usar": escolhas}, journal.relativo(arq))
+    console.print(f"relatório em {journal.relativo(arq)} (execuções copiadas para results/final/)")
 
 
 # ---------------------------------------------------------------- painel
