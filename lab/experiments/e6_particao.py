@@ -14,7 +14,7 @@ import time
 from collections import Counter
 
 from lab import cluster, garage, plots, stats
-from lab.experiments.base import Experiment, fase_por_intervalo
+from lab.experiments.base import Experiment, fase_por_intervalo, monitorar_visao
 from lab.report import tabela_md
 from lab.workload import ConfigCarga, SinkJSONL, Workload
 
@@ -24,17 +24,6 @@ LADOS = {1: "maioria", 3: "minoria"}
 class E6(Experiment):
     nome = "E6"
     descricao = "Partição de rede"
-
-    def _monitor(self, t0: float, parar: threading.Event, saida: list) -> None:
-        while not parar.is_set():
-            for n in (1, 3):
-                try:
-                    st = self.api.cluster_status(n)
-                    up = sorted(x["hostname"] for x in st["nodes"] if x.get("isUp") and x.get("hostname"))
-                except garage.ErroGarage:
-                    up = None
-                saida.append({"t": round(time.monotonic() - t0, 2), "no": n, "ve_up": up})
-            parar.wait(1.0)
 
     def run_rep(self, i: int) -> dict:
         baseline, particao = (5, 40) if self.quick else (10, 120)
@@ -50,7 +39,7 @@ class E6(Experiment):
         sink = SinkJSONL(self.dir / f"ops_rep{i}.jsonl")
         w = Workload(cfg, {"run": self.dir.name, "rep": i, "mode": "consistent", "scenario": "E6"}, [sink])
         monitor, parar = [], threading.Event()
-        th = threading.Thread(target=self._monitor, args=(w.t0, parar, monitor))
+        th = threading.Thread(target=monitorar_visao, args=(self.api, w.t0, parar, monitor))
         marcos = {}
         try:
             th.start()

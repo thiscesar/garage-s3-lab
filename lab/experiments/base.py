@@ -14,6 +14,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -40,6 +41,22 @@ def fase_por_intervalo(ts: float, te: float, marcos: dict) -> str:
     if ts >= marcos["heal_at"]:
         return "heal"
     return "transicao"
+
+
+def monitorar_visao(api: garage.AdminAPI, t0: float, parar: threading.Event, saida: list, nos=(1, 3)) -> None:
+    """A cada 1 s, quem cada nó de `nos` vê como ativo (GetClusterStatus), até `parar`; mede a detecção (E6, E9).
+
+    Cada amostra: {"t": s desde t0, "no": n, "ve_up": [hostnames] ou None se a Admin API não respondeu}.
+    """
+    while not parar.is_set():
+        for n in nos:
+            try:
+                st = api.cluster_status(n)
+                up = sorted(x["hostname"] for x in st["nodes"] if x.get("isUp") and x.get("hostname"))
+            except garage.ErroGarage:
+                up = None
+            saida.append({"t": round(time.monotonic() - t0, 2), "no": n, "ve_up": up})
+        parar.wait(1.0)
 
 
 class PrecondicaoFalhou(Exception):

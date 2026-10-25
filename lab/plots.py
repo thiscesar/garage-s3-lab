@@ -84,3 +84,67 @@ def barras_agrupadas(
     ax.set_ylabel(eixo_y)
     ax.legend()
     return fig
+
+
+def linha_do_tempo(
+    faixas: list[tuple[str, list[tuple[float, str]]]],
+    marcos: dict[str, float],
+    titulo: str,
+    eixo_x: str = "tempo desde a partição (s)",
+    legenda: dict[str, str] | None = None,
+):
+    """Uma faixa por papel (de cima para baixo), um ponto por operação (x, cor); linhas verticais nos marcos.
+
+    `legenda` = {rótulo: cor} para explicar as cores dos pontos.
+    """
+    fig, ax = plt.subplots(figsize=(10, 0.6 * len(faixas) + 1.6))
+    for k, (_, pontos) in enumerate(faixas):
+        y = len(faixas) - 1 - k
+        if pontos:
+            xs, cores = zip(*pontos, strict=True)
+            ax.scatter(xs, [y] * len(xs), c=list(cores), s=9, marker="|", linewidths=1.2)
+    ax.set_yticks(range(len(faixas)), [rotulo for rotulo, _ in reversed(faixas)])
+    for nome, x in marcos.items():
+        ax.axvline(x, color="#2d3748", linestyle="--", linewidth=0.9)
+        ax.text(x, len(faixas) - 0.4, f" {nome}", rotation=90, va="top", fontsize=8, color="#2d3748")
+    if legenda:
+        from matplotlib.lines import Line2D
+
+        ax.legend(
+            [Line2D([], [], color=c, marker="|", linestyle="", markersize=10) for c in legenda.values()],
+            list(legenda),
+            loc="upper left",
+            bbox_to_anchor=(1.0, 1.0),
+            fontsize=8,
+        )
+    ax.set_ylim(-0.6, len(faixas) - 0.4)
+    ax.set_xlabel(eixo_x)
+    ax.set_title(titulo)
+    ax.grid(axis="y", visible=False)
+    return fig
+
+
+def cdf(series: dict[str, list[float]], titulo: str, eixo_x: str, cores: dict[str, str] | None = None):
+    """Função de distribuição acumulada empírica de cada série (séries vazias são omitidas)."""
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(6, 3.6))
+    for nome, valores in series.items():
+        if not valores:
+            continue
+        x = np.sort(np.asarray(valores, dtype=float))
+        ax.step(
+            x,
+            np.arange(1, x.size + 1) / x.size,
+            where="post",
+            label=f"{nome} (n={x.size})",
+            color=(cores or {}).get(nome),
+        )
+    ax.set_xlabel(eixo_x)
+    ax.set_ylabel("fração acumulada")
+    ax.set_title(titulo)
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend()
+    else:
+        ax.text(0.5, 0.5, "sem dados", ha="center", va="center", transform=ax.transAxes)
+    return fig
