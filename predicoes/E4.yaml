@@ -1,0 +1,25 @@
+experimento: E4
+titulo: Consistência
+roteiro: "§4.2 E4; §7.3 E4 (sobrescrever via garage1 e ler em laço via garage2 e garage3; listar logo após criar; explicar pelos quóruns do consistent)"
+previsoes:
+  - id: P1
+    afirmacao: "consistent: nenhuma leitura desatualizada (0 stale) e nenhuma anomalia entre as leituras feitas via garage2 e garage3 logo após cada confirmação."
+    fundamento: "R + W > N (2 + 2 > 3): todo quórum de leitura cruza o de escrita, então a leitura vê a última escrita confirmada; precedência em tempo real (leitura começa depois do ack)."
+    fontes: ["C6 (replication_mode.rs l. 41–55)", "doc Configuration (consistency_mode)", "MALKHI; REITER (1998) §3.2", "GIFFORD (1979)"]
+  - id: P2
+    afirmacao: "consistent: a listagem (ListObjectsV2) via garage2/garage3 logo após cada confirmação sempre contém o objeto recém-criado."
+    fundamento: "A listagem lê a tabela de objetos por get_range com o mesmo quórum de leitura do GET (e repair-on-read)."
+    fontes: ["src/api/s3/list.rs l. 69–71, 176–178", "src/table/table.rs l. 391–454"]
+  - id: P3
+    afirmacao: "degraded e dangerous, sem falhas: leituras desatualizadas raras, mas possíveis (taxa baixa, perto de 0)."
+    fundamento: "R = 1 lê só a cópia local (C3); a escrita volta com W réplicas e o resto segue em segundo plano (C5): o leitor pode cair na réplica que ainda não aplicou. Em dangerous W = 1 aumenta a chance."
+    fontes: ["C3, C5, C6", ""]
+  - id: P4
+    afirmacao: "degraded e dangerous: a listagem tem o mesmo comportamento do GET (incompleta raramente, perto de 0)."
+    fundamento: "Mesma rota de leitura com R = 1."
+    fontes: ["list.rs l. 69–71; table.rs l. 391–454"]
+perguntas_guia:
+  - "Algum leitor viu o valor antigo depois da confirmação em consistent? Explique pelos quóruns (R + W > N)."
+  - "A listagem se comportou como o GET? Por que (mesma rota de leitura)?"
+  - "Em degraded/dangerous apareceram leituras desatualizadas sem nenhuma falha? Com que frequência e em qual nó?"
+  - "Qual modelo de consistência o Garage oferece em cada modo (leitura após escrita, eventual)?"
