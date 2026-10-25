@@ -65,17 +65,16 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 | **E2** Caminho de uma operação | qualquer nó é gateway; para onde vão os RPCs de um PUT e de um GET | PUT vai às 3 réplicas e **começa com uma leitura** (para calcular o carimbo); GET em `consistent` consulta 2 nós; o bloco de 2 MiB é lido só do disco do nó de entrada | 5/5 |
 | **E3** Replicação | objeto de 8 MiB nos 3 discos; latência; propagação | 8,000 MiB em cada nó e SHA-256 igual; PUT ≈ 52 ms × GET ≈ 13 ms (4 KiB); propagação 0 em 90/90 leituras | 4/4 |
 | **E4** Consistência | leitura logo após a escrita, sem falhas | `consistent`: 0 desatualizadas em 2 000; `degraded` 0,5–1,0% e `dangerous` 1,8–2,7%. **Refutada:** a listagem em `dangerous` falhou em ~14% (previsto ≤ 5%); sondagem mostrou listagem = GET quando medidos no mesmo ritmo (hipótese: efeito da cadência das escritas) | 3/4 |
-| **E5** Falha e quórum | parar 1 e 2 nós em cada modo | em regime, o quadro "nós ativos × leitura × escrita" bate com N/R/W nos 9 casos. **Refutadas** por transitórios: timeouts logo após parar um nó em `consistent` e ~23 s para voltar a escrever em `degraded` | 1/4 ⚠️ |
-| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 99,6% disponível; minoria 0/836 (nenhuma leitura desatualizada); detecção da partição ≈ 80 s; malha refeita ≈ 22 s após curar → **C em vez de A** | 5/5 ⚠️ |
+| **E5** Falha e quórum | parar 1 e 2 nós em cada modo | em regime, o quadro "nós ativos × leitura × escrita" bate com N/R/W nos 9 casos. **Refutadas** por transitórios: em `consistent`, logo após parar um nó, até ~60 s de timeouts por um nó de entrada; voltar a escrever depois de religar levou 13–19 s (previsto < 15 s) | 1/4 |
+| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 96,4% disponível (timeouts só na janela de detecção); minoria 0/2 299 (nenhuma leitura desatualizada); detecção da partição ≈ 79 s; malha refeita ≈ 25 s após curar → **C em vez de A** | 5/5 |
 | **E7** Recuperação | o nó que volta recebe o que perdeu? anti-entropia e `repair` | sem `repair`: tabelas iguais em ~475 s e dados em ~1 075 s (+600 s de agendamento no código); com `repair`: ~34 s; estado final idêntico. **Refutada:** previsão de ~10 min para a convergência natural completa | 3/4 |
 | **E8** Coordenação e ordem | sem líder; PUTs concorrentes; layout versionado; `CreateBucket` concorrente | valor único em 250/250 pares (LWW), venceu o PUT que começou depois em 84%; `apply` com versão errada recusado; `CreateBucket` concorrente gerou 3 nomes duplicados e 17 buckets órfãos | 5/5 |
 
-> ⚠️ **E5 e E6 estão sendo refeitos (25/10/2026).** No teste deste README descobrimos que o cliente boto3 fazia
-> **uma nova tentativa** depois de timeout ou de erro 503: no botocore, `max_attempts: 1` significa "1 *nova*
-> tentativa"; o correto para "sem retries" é `total_max_attempts: 1`. Isso não muda E1–E4, E7 e E8 (não houve
-> erro S3 nessas execuções), mas afeta os números de E5 e E6 (timeouts de ~6–7 s em vez de 3 s e algumas falhas
-> mascaradas). O cliente foi corrigido (commit `cliente S3 sem novas tentativas`, com teste); a tabela acima será
-> atualizada com as novas execuções.
+> **Correção de 25/10/2026:** no teste deste README descobrimos que o cliente boto3 fazia **uma nova tentativa**
+> depois de timeout ou de erro 503 (no botocore, `max_attempts: 1` = "1 *nova* tentativa"; "sem retries" é
+> `total_max_attempts: 1`). O cliente foi corrigido (com teste) e E5 e E6 foram refeitos: o placar não mudou, mas a
+> nova tentativa escondia falhas (ex.: no E6 a maioria tinha aparecido com 99,6% de disponibilidade). E1–E4, E7 e
+> E8 não tiveram erro S3, então não mudam.
 
 ### Onde estão os resultados
 
@@ -90,7 +89,7 @@ Cada execução grava em `results/<experimento>/<data-hora>/`:
 | `evidence/`, `figures/` | saídas de comandos do Garage com cabeçalho e as figuras (PNG + SVG) |
 
 `results/` **não vai para o git**. As execuções de referência estão na máquina da equipe e serão compartilhadas à
-parte: E1 `2026-10-25T00-47-26`, E2 `00-56-51`, E3 `01-11-14`, E4 `01-21-39`, E5 `01-36-40`, E6 `02-40-49`,
+parte: E1 `2026-10-25T00-47-26`, E2 `00-56-51`, E3 `01-11-14`, E4 `01-21-39`, E5 `14-21-46`, E6 `14-46-04`,
 E7 `07-38-20`, E8 `02-56-57`.
 
 ---
@@ -210,7 +209,7 @@ repetições, **restaura o cluster no final mesmo se der erro** e imprime o plac
 | `labctl run E2` | ~30 s (`LAB_DEBUG=1 labctl run E2` recria os nós com log de depuração e volta ao normal no fim) |
 | `labctl run E3` | ~5 min |
 | `labctl run E4` | ~7 min |
-| `labctl run E5` | ~28 min |
+| `labctl run E5` | ~25 min |
 | `labctl run E6` | ~14 min |
 | `labctl run E7` | **~1 h 53 min** (espera a convergência natural, até 25 min por ciclo) |
 | `labctl run E8` | ~3 min (sobe a versão do layout em 2 a cada execução; é esperado) |
