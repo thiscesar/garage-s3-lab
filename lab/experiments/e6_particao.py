@@ -14,7 +14,7 @@ import time
 from collections import Counter
 
 from lab import cluster, garage, plots, stats
-from lab.experiments.base import Experiment
+from lab.experiments.base import Experiment, fase_por_intervalo
 from lab.report import tabela_md
 from lab.workload import ConfigCarga, SinkJSONL, Workload
 
@@ -101,15 +101,7 @@ class E6(Experiment):
             ev = json.loads(linha)
             lado = LADOS.get(ev["node"], str(ev["node"]))
             # fase pelo intervalo inteiro da operação; quem atravessa uma fronteira vai para "transicao"
-            ts, te = ev["t_start"], ev["t_end"]
-            if te < marcos["partition_start"]:
-                fase = "baseline"
-            elif ts >= marcos["partition_at"] and te < marcos["heal_start"]:
-                fase = "partition"
-            elif ts >= marcos["heal_at"]:
-                fase = "heal"
-            else:
-                fase = "transicao"
+            fase = fase_por_intervalo(ev["t_start"], ev["t_end"], marcos)
             ev["phase"] = fase
             d = res.setdefault(
                 f"{fase}|{lado}|{ev['op']}",

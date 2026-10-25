@@ -129,3 +129,14 @@ def test_escrita_que_sucede_a_lida_torna_stale_mesmo_com_dois_escritores():
     c = o.classificar(K, ts=0.50, te=0.51, versao_lida=5)
     assert (c.classe, c.lag_versions) == ("stale", 1)
     assert c.lag_ms == pytest.approx(30.0)
+
+
+def test_fase_por_intervalo():
+    from lab.experiments.base import fase_por_intervalo
+
+    m = {"partition_start": 10.0, "partition_at": 10.2, "heal_start": 130.0, "heal_at": 130.5}
+    assert fase_por_intervalo(1.0, 9.9, m) == "baseline"
+    assert fase_por_intervalo(9.9, 10.1, m) == "transicao"  # atravessa o início
+    assert fase_por_intervalo(10.3, 129.9, m) == "partition"
+    assert fase_por_intervalo(129.8, 130.6, m) == "transicao"  # atravessa a cura
+    assert fase_por_intervalo(130.6, 131.0, m) == "heal"

@@ -27,6 +27,21 @@ from lab.journal import DIR_RESULTS, agora_iso
 DIR_PREDICOES = RAIZ / "predicoes"
 
 
+def fase_por_intervalo(ts: float, te: float, marcos: dict) -> str:
+    """Fase de uma operação pelo intervalo inteiro [ts, te].
+
+    baseline: termina antes de `partition_start`; partition: começa depois de `partition_at` e termina antes de
+    `heal_start`; heal: começa depois de `heal_at`; senão "transicao" (atravessa uma fronteira; reportada à parte).
+    """
+    if te < marcos["partition_start"]:
+        return "baseline"
+    if ts >= marcos["partition_at"] and te < marcos["heal_start"]:
+        return "partition"
+    if ts >= marcos["heal_at"]:
+        return "heal"
+    return "transicao"
+
+
 class PrecondicaoFalhou(Exception):
     """O cluster não está no estado que o experimento exige; nada foi executado."""
 
