@@ -74,7 +74,11 @@ class E7(Experiment):
 
     @staticmethod
     def convergido(estado: dict) -> tuple[bool, list[str]]:
-        """Critério de convergência; devolve (ok, motivos de não convergência)."""
+        """Critério de convergência; devolve (ok, motivos de não convergência).
+
+        A fila de resync de blocos NÃO entra: todo bloco novo é agendado para conferência 2 × rpc_timeout
+        (600 s) depois de escrito (block/manager.rs l. 474–485), então ela fica > 0 por ~10 min sem divergência.
+        """
         motivos, nos = [], estado["nos"]
         for t in TABELAS:
             itens = {no: d["tabelas"].get(t, {}).get("Items") for no, d in nos.items()}
@@ -89,8 +93,6 @@ class E7(Experiment):
         rc = {no: d["blocos"].get("rc") for no, d in nos.items()}
         if len(set(rc.values())) != 1:
             motivos.append(f"blocos (RC) diferentes {rc}")
-        if any(d["blocos"].get("resync", 0) for d in nos.values()):
-            motivos.append("fila de resync de blocos > 0")
         du = estado["du"]
         if max(du.values()) - min(du.values()) > 64 * 1024:
             motivos.append(f"du de data/ diferente {du}")
@@ -98,7 +100,7 @@ class E7(Experiment):
 
     def _ciclo(self, i: int, tipo: str) -> dict:
         particao_s = 90 if self.quick else 120
-        limite_natural = 150 if self.quick else 15 * 60
+        limite_natural = 150 if self.quick else 25 * 60  # dados de bloco ~ tabelas + 600 s
         cliente = lab_s3.cliente_s3(1)
         prefixo = f"e7/{tipo}/r{i}-{uuid.uuid4().hex[:6]}"
         t0 = time.monotonic()
@@ -110,39 +112,49 @@ class E7(Experiment):
         restante = particao_s - (time.monotonic() - t0)
         if restante > 0:
             time.sleep(restante)
-        cluster.curar(3)
-        t_malha = garage.esperar_malha(limite_s=180, api=self.api)
-        t_cura = time.monotonic()
-        logo_apos = self._estado()
+        # P1: retrato no fim da partição, antes de curar (a Admin API do garage3 responde pela rede clientes)
+        antes_cura = self._estado()
         self.evidencia(
-            f"rep{i}_{tipo}_estado_logo_apos_cura.txt", "GetNodeStatistics (3 nós) + du -sb", lambda: logo_apos
+            f"rep{i}_{tipo}_estado_antes_da_cura.txt", "GetNodeStatistics (3 nós) + du -sb", lambda: antes_cura
         )
-        reparos = {}
-        if tipo == "reparo":
-            for alvo in ("tables", "blocks"):
-                reparos[alvo] = self.api.launch_repair(1, alvo, "*")
-        limite = 300 if tipo == "reparo" else limite_natural
+        cluster.curar(3)
+        t_cura = time.monotonic()
+        reparos, t_malha, t_tabelas = {}, None, None
+        limite = 600 if tipo == "reparo" else limite_natural
         t_conv, ultimo_motivo, amostras = None, None, 0
         while time.monotonic() - t_cura <= limite:
+            agora = time.monotonic() - t_cura
+            if t_malha is None and all(v == {f"garage{n}" for n in NOS} for v in garage.malha(self.api).values()):
+                t_malha = agora
+                if tipo == "reparo":  # o repair precisa da malha completa; 1º tables (roteiro E7.2)
+                    reparos["tables"] = self.api.launch_repair(1, "tables", "*")
             estado = self._estado()
             amostras += 1
             ok, motivos = self.convergido(estado)
-            if ok:
+            so_disco = all(m.startswith("du ") for m in motivos)  # tabelas e RC já iguais; falta dado de bloco
+            if t_tabelas is None and t_malha is not None and (ok or so_disco):
+                t_tabelas = round(agora, 1)
+                if tipo == "reparo":  # blocks só depois de as tabelas convergirem
+                    reparos["blocks"] = self.api.launch_repair(1, "blocks", "*")
+            if ok and t_malha is not None:
                 t_conv = round(time.monotonic() - t_cura, 1)
                 break
             ultimo_motivo = motivos
-            time.sleep(2 if tipo == "reparo" else 10)
+            time.sleep(2 if tipo == "reparo" else 5)
+        if t_malha is None:
+            t_malha = garage.esperar_malha(limite_s=180, api=self.api)
         final = self._estado()
         self.evidencia(f"rep{i}_{tipo}_estado_final.txt", "GetNodeStatistics (3 nós) + du -sb", lambda: final)
         return {
             "tipo": tipo,
             "escritos": escritos,
             "t_malha_s": round(t_malha, 1),
+            "antes_cura": antes_cura,
             "t_convergencia_s": t_conv,
+            "t_tabelas_s": t_tabelas,
             "limite_s": limite,
             "amostras": amostras,
             "motivos_nao_convergencia": ultimo_motivo,
-            "logo_apos": logo_apos,
             "final": final,
             "reparos": reparos,
         }
@@ -172,7 +184,7 @@ class E7(Experiment):
         for k, r in enumerate(reps):
             for tipo in ("reparo", "natural"):
                 c = r[tipo]
-                d = deficit(c["logo_apos"])
+                d = deficit(c["antes_cura"])
                 linhas_csv.append(
                     {
                         "rep": k,
@@ -189,6 +201,7 @@ class E7(Experiment):
                         c["escritos"],
                         ", ".join(f"{t} {v}" for t, v in d.items()),
                         c["t_malha_s"],
+                        c.get("t_tabelas_s") if c.get("t_tabelas_s") is not None else "—",
                         c["t_convergencia_s"] if c["t_convergencia_s"] is not None else f"> {c['limite_s']} s",
                     ]
                 )
@@ -206,11 +219,11 @@ class E7(Experiment):
             return f"{s.media:.1f} ± {0 if s.n < 2 else s.desvio:.1f} s (mín {s.minimo:.1f}, máx {s.maximo:.1f}, n={s.n}{extra})"
 
         faltou = [
-            any(v > 0 for v in deficit(r[tipo]["logo_apos"]).values()) for r in reps for tipo in ("reparo", "natural")
+            any(v > 0 for v in deficit(r[tipo]["antes_cura"]).values()) for r in reps for tipo in ("reparo", "natural")
         ]
         nat, rep = tempos("natural"), tempos("reparo")
         p1 = all(faltou)
-        p2 = all(t is not None and t <= 11 * 60 for t in nat)
+        p2 = all(t is not None and t <= 11 * 60 for t in nat)  # critério pré-registrado (P2: ~10 min do código)
         p3 = all(t is not None for t in rep) and all(
             r is not None and (n is None or r < n) for r, n in zip(rep, nat, strict=True)
         )
@@ -229,7 +242,7 @@ class E7(Experiment):
                 ["com repair", "natural"],
                 medias,
                 [0, 0],
-                "Tempo até convergir após a malha voltar",
+                "Tempo até convergir após curar",
                 "s",
                 ["#2f855a", "#4a5568"],
                 linha_limite=(600, "10 min (código, C5b)"),
@@ -241,7 +254,7 @@ class E7(Experiment):
             {
                 "id": "P1",
                 "situacao": "confirmada" if p1 else "refutada",
-                "resultado": f"garage3 com itens faltando logo após a malha voltar em {sum(faltou)}/{len(faltou)} ciclos",
+                "resultado": f"garage3 com itens faltando ao fim da partição (antes de curar) em {sum(faltou)}/{len(faltou)} ciclos",
             },
             {
                 "id": "P2",
@@ -267,9 +280,10 @@ class E7(Experiment):
                             "rep",
                             "ciclo",
                             "objetos escritos na partição",
-                            "faltando no garage3 logo após a cura",
+                            "faltando no garage3 antes da cura",
                             "malha (s)",
-                            "convergência (s)",
+                            "tabelas iguais (s)",
+                            "convergência total, com dados de bloco (s)",
                         ],
                         tab,
                     ),
@@ -278,8 +292,9 @@ class E7(Experiment):
                     "Critério de convergência",
                     (
                         "Pelas estatísticas de cada nó (GetNodeStatistics), sem ler objetos: itens iguais em object, version e "
-                        "block_ref; MklTodo e InsQueue zerados; mesmas entradas de blocos (RC) e fila de resync zerada; `du -sb` "
-                        "de data/ igual (tolerância 64 KiB). Tempo contado a partir da malha completa após curar."
+                        "block_ref; MklTodo e InsQueue zerados; mesmas entradas de blocos (RC); `du -sb` "
+                        "de data/ igual (tolerância 64 KiB). A fila de resync não entra (conferência agendada de blocos novos, 600 s; block/manager.rs l. 474–485). Tempo contado a partir da cura (connect); o repair é disparado "
+                        "quando a malha fica completa."
                     ),
                 ),
             ],

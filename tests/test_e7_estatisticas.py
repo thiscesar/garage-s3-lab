@@ -36,8 +36,8 @@ def test_convergencia_exige_contagens_filas_e_disco_iguais():
     e["nos"]["garage2"]["tabelas"]["version"]["MklTodo"] = 3
     assert not E7.convergido(e)[0]
     e = _estado()
-    e["nos"]["garage3"]["blocos"]["resync"] = 1
-    assert not E7.convergido(e)[0]
+    e["nos"]["garage3"]["blocos"]["resync"] = 50  # conferência agendada de blocos novos: não é divergência
+    assert E7.convergido(e)[0]
     e = _estado()
     e["du"]["garage3"] = 1000 + 200 * 1024
     assert not E7.convergido(e)[0]
