@@ -17,9 +17,33 @@ from lab.config import Topologia, carregar_env
 BUCKET = "sdlab"
 
 
-def cliente_s3(n: int, env: dict[str, str] | None = None, connect_timeout: float = 1, read_timeout: float = 3):
+def config_cliente(connect_timeout: float = 1, read_timeout: float = 3) -> Config:
+    """Configuração comum dos clientes S3 do laboratório: uma única tentativa por operação.
+
+    No botocore, `max_attempts` conta as *novas* tentativas (`max_attempts: 1` = 2 envios); "sem retries" é
+    `total_max_attempts: 1` (botocore/config.py, docstring de `retries`).
+    """
+    return Config(
+        s3={"addressing_style": "path"},
+        retries={"total_max_attempts": 1, "mode": "standard"},  # sem retries
+        connect_timeout=connect_timeout,
+        read_timeout=read_timeout,
+        # Somente o necessário de checksums (comportamento do boto3 anterior à 1.36)
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    )
+
+
+def cliente_s3(
+    n: int,
+    env: dict[str, str] | None = None,
+    connect_timeout: float = 1,
+    read_timeout: float = 3,
+    credenciais: tuple[str, str] | None = None,
+):
+    """Cliente boto3 que entra pelo garage<n>; credenciais da sd-key (.env), salvo se `credenciais` for dado."""
     env = carregar_env() if env is None else env
-    chave, segredo = env.get("AWS_ACCESS_KEY_ID"), env.get("AWS_SECRET_ACCESS_KEY")
+    chave, segredo = credenciais or (env.get("AWS_ACCESS_KEY_ID"), env.get("AWS_SECRET_ACCESS_KEY"))
     if not (chave and segredo):
         raise RuntimeError("credenciais S3 vazias no .env: rode `make up` (o iniciar.sh as grava)")
     return boto3.client(
@@ -28,15 +52,7 @@ def cliente_s3(n: int, env: dict[str, str] | None = None, connect_timeout: float
         region_name="garage",
         aws_access_key_id=chave,
         aws_secret_access_key=segredo,
-        config=Config(
-            s3={"addressing_style": "path"},
-            retries={"max_attempts": 1, "mode": "standard"},  # sem retries
-            connect_timeout=connect_timeout,
-            read_timeout=read_timeout,
-            # Somente o necessário de checksums (comportamento do boto3 anterior à 1.36)
-            request_checksum_calculation="when_required",
-            response_checksum_validation="when_required",
-        ),
+        config=config_cliente(connect_timeout, read_timeout),
     )
 
 

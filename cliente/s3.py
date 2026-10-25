@@ -36,7 +36,8 @@ def cliente_s3(no: int):
         aws_secret_access_key=segredo,
         config=Config(
             s3={"addressing_style": "path"},
-            retries={"max_attempts": 1, "mode": "standard"},  # sem retries
+            # sem retries: no botocore, max_attempts conta só as novas tentativas
+            retries={"total_max_attempts": 1, "mode": "standard"},
             connect_timeout=1,
             read_timeout=3,
             # Somente o necessário de checksums (comportamento do boto3 anterior à 1.36).

@@ -17,33 +17,13 @@ import threading
 import time
 import uuid
 
-import boto3
-from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from lab import garage, plots, stats
 from lab import s3 as lab_s3
-from lab.config import NOS, Topologia
+from lab.config import NOS
 from lab.experiments.base import Experiment
 from lab.report import tabela_md
-
-
-def _cliente_com_chave(n: int, chave: str, segredo: str):
-    return boto3.client(
-        "s3",
-        endpoint_url=f"http://{Topologia.do_env().ip_clientes(n)}:3900",
-        region_name="garage",
-        aws_access_key_id=chave,
-        aws_secret_access_key=segredo,
-        config=Config(
-            s3={"addressing_style": "path"},
-            retries={"max_attempts": 1, "mode": "standard"},
-            connect_timeout=1,
-            read_timeout=3,
-            request_checksum_calculation="when_required",
-            response_checksum_validation="when_required",
-        ),
-    )
 
 
 class E8(Experiment):
@@ -138,7 +118,7 @@ class E8(Experiment):
         nome_chave = f"e8-tmp-{uuid.uuid4().hex[:6]}"
         info = self.api._json("POST", 1, "CreateKey", json={"name": nome_chave, "allow": {"createBucket": True}})
         id_chave, segredo = info["accessKeyId"], info["secretAccessKey"]
-        clientes = {n: _cliente_com_chave(n, id_chave, segredo) for n in (1, 2)}
+        clientes = {n: lab_s3.cliente_s3(n, credenciais=(id_chave, segredo)) for n in (1, 2)}
         tentativas_res = []
         try:
             for k in range(tentativas):
