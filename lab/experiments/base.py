@@ -7,6 +7,7 @@ captura de exceções e restauração do cluster no `finally` (cura partições,
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import platform
@@ -19,7 +20,7 @@ from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 
-from lab import cluster, garage, journal
+from lab import cluster, evidence, garage, journal, report
 from lab.config import NOS, RAIZ, Topologia, modo_atual
 from lab.journal import DIR_RESULTS, agora_iso
 
@@ -75,19 +76,21 @@ class Experiment:
 
     nome: str = "E?"
     descricao: str = ""
-    modo_esperado: str = "consistent"
+    modo_esperado: str = "consistent"  # estado padrão exigido no início (os modos mudam dentro da repetição)
+    reps_padrao: int = 5  # roteiro R7: ≥ 5 repetições quando há medição
+    reps_quick: int = 1
 
     def __init__(
         self,
-        reps: int = 5,
+        reps: int | None = None,
         quick: bool = False,
         modo: str | None = None,
         cenario: str | None = None,
         parametros: dict | None = None,
         base: Path = DIR_RESULTS,
     ):
-        self.reps = reps
         self.quick = quick
+        self.reps = reps if reps is not None else (self.reps_quick if quick else self.reps_padrao)
         self.modo = modo or self.modo_esperado
         self.cenario = cenario
         self.parametros = parametros or {}
@@ -123,7 +126,34 @@ class Experiment:
         return garage.restaurar()
 
     def analyze(self) -> dict | None:
+        """Devolve {"resultados": [{id, resultado, situacao}], "secoes": [(título, md)], "figuras": [nomes]}."""
         return None
+
+    # ------------------------------------------------------------ ajudantes
+
+    @property
+    def dir_evidencias(self) -> Path:
+        return self.dir / "evidence"
+
+    @property
+    def dir_figuras(self) -> Path:
+        return self.dir / "figures"
+
+    def evidencia(self, nome: str, comando: str, coletar) -> Path:
+        """Grava a saída de `coletar()` em evidence/<nome> com cabeçalho (comando, início, duração, situação)."""
+        return evidence.salvar(self.dir_evidencias, nome, comando, coletar)
+
+    def gravar_csv(self, nome: str, linhas: list[dict]) -> Path:
+        arq = self.dir / nome
+        if not linhas:
+            arq.write_text("")
+            return arq
+        campos = list(dict.fromkeys(k for linha in linhas for k in linha))
+        with arq.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=campos)
+            w.writeheader()
+            w.writerows(linhas)
+        return arq
 
     # ------------------------------------------------------------ manifest
 
@@ -210,6 +240,8 @@ class Experiment:
             finally:
                 self.manifest["fim"] = agora_iso()
                 self._gravar_manifest()
-        self.manifest["analise"] = self.analyze()
+        analise = self.analyze()
+        self.manifest["analise"] = analise
         self._gravar_manifest()
+        report.gerar_summary(self.dir, analise)
         return self.dir

@@ -75,14 +75,23 @@ def estado(n: int) -> dict:
 
 
 def memoria(nome_servico: str) -> int | None:
-    """Memória em uso (bytes) segundo `docker stats` (sem stream); None se o contêiner não roda."""
+    """Memória em uso (bytes), no mesmo critério do `docker stats`; None se o contêiner não roda.
+
+    A API do Docker dá o uso total; o `docker stats` desconta o cache de arquivos (`inactive_file` no
+    cgroup v2, `total_inactive_file` no v1). Fonte: https://docs.docker.com/reference/cli/docker/container/stats/
+    """
     try:
         c = container(nome_servico)
     except NotFound:
         return None
     if c.status != "running":
         return None
-    return c.stats(stream=False).get("memory_stats", {}).get("usage")
+    m = c.stats(stream=False).get("memory_stats", {})
+    if "usage" not in m:
+        return None
+    detalhes = m.get("stats", {})
+    cache = detalhes.get("inactive_file", detalhes.get("total_inactive_file", 0))
+    return m["usage"] - cache
 
 
 # ---------------------------------------------------------------- ações

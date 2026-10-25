@@ -1,1 +1,18 @@
 """Experimentos E1–E9. Cada um é uma subclasse de `base.Experiment`."""
+
+from __future__ import annotations
+
+from importlib import import_module
+
+# nome → "módulo:Classe" (importados só quando usados)
+EXPERIMENTOS = {
+    "E1": "lab.experiments.e1_topologia:E1",
+}
+
+
+def carregar(nome: str):
+    nome = nome.upper()
+    if nome not in EXPERIMENTOS:
+        raise ValueError(f"experimento desconhecido: {nome} (disponíveis: {', '.join(EXPERIMENTOS)})")
+    modulo, classe = EXPERIMENTOS[nome].split(":")
+    return getattr(import_module(modulo), classe)

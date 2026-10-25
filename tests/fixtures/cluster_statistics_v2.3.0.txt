@@ -1,0 +1,13 @@
+Storage nodes:
+  ID                Hostname  Zone  Capacity   Part.  DataAvail                   MetaAvail
+  0b63ad6b80851f29  garage3   dz3   953.7 MiB  256    52.0 GiB/467.3 GiB (11.1%)  52.0 GiB/467.3 GiB (11.1%)
+  6cbb0b6ef73960c8  garage2   dz2   953.7 MiB  256    52.0 GiB/467.3 GiB (11.1%)  52.0 GiB/467.3 GiB (11.1%)
+  760fb39ebdb45d2f  garage1   dz1   953.7 MiB  256    52.0 GiB/467.3 GiB (11.1%)  52.0 GiB/467.3 GiB (11.1%)
+
+Number of buckets:        1
+Total number of objects:  113
+Total size of objects:    83.2 KiB
+
+Estimated available storage space cluster-wide (might be lower in practice):
+  data: 52.0 GiB
+  metadata: 52.0 GiB

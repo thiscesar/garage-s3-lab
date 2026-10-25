@@ -254,6 +254,36 @@ def s3_del(n: int = NO, chave: str = typer.Argument(...)) -> None:
     console.print(f"DELETE {chave} ok")
 
 
+# ---------------------------------------------------------------- experimentos
+
+
+@app.command()
+def run(
+    experimento: str = typer.Argument(..., help="E1 … E9"),
+    reps: int | None = typer.Option(None, "--reps", min=1, help="repetições (padrão do experimento)"),
+    quick: bool = typer.Option(False, "--quick", help="durações e repetições reduzidas (desenvolvimento)"),
+    mode: str | None = typer.Option(None, "--mode", help="modo, quando o experimento aceita"),
+    scenario: str | None = typer.Option(None, "--scenario", help="cenário, quando o experimento aceita"),
+) -> None:
+    """Executa um experimento: pré-condição, repetições, restauração e summary.md em results/."""
+    from lab.experiments import carregar
+    from lab.experiments.base import PrecondicaoFalhou
+
+    classe = carregar(experimento)
+    exp = classe(reps=reps, quick=quick, modo=mode, cenario=scenario)
+    console.print(f"[bold]{exp.nome}[/bold] — {exp.descricao} · reps={exp.reps}{' · quick' if quick else ''}")
+    try:
+        destino = exp.run()
+    except PrecondicaoFalhou as e:
+        _falhar(f"pré-condição: {e} (rode `labctl net heal --all`)")
+    reps_ok = sum(1 for r in exp.repeticoes if r.get("situacao") == "ok")
+    console.print(f"repetições ok: {reps_ok}/{len(exp.repeticoes)}")
+    for r in (exp.manifest.get("analise") or {}).get("resultados", []):
+        cor = {"confirmada": "green", "refutada": "red"}.get(r["situacao"], "yellow")
+        console.print(f"  {r['id']}: [{cor}]{r['situacao']}[/{cor}]")
+    console.print(f"resultado em {journal.relativo(destino)}/summary.md")
+
+
 # ---------------------------------------------------------------- evidências
 
 
