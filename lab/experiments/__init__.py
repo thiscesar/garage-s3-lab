@@ -10,6 +10,9 @@ EXPERIMENTOS = {
     "E2": "lab.experiments.e2_caminho:E2",
     "E3": "lab.experiments.e3_replicacao:E3",
     "E4": "lab.experiments.e4_consistencia:E4",
+    "E5": "lab.experiments.e5_falha_quorum:E5",
+    "E6": "lab.experiments.e6_particao:E6",
+    "E7": "lab.experiments.e7_recuperacao:E7",
 }
 
 

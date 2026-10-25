@@ -1,0 +1,25 @@
+experimento: E7
+titulo: Recuperação
+roteiro: "§4.2 E7; §7.3 E7 (reconectar garage3 e verificar se os objetos escritos na partição chegam; forçar garage repair --all-nodes --yes tables e blocks e medir o tempo até os três terem os mesmos dados; árvores de Merkle)"
+previsoes:
+  - id: P1
+    afirmacao: "Os objetos escritos pela maioria durante uma partição longa (120 s, maior que a janela de detecção) não chegam ao garage3 só por reconectar: logo após a malha voltar, as contagens da tabela de objetos e de blocos do garage3 ficam menores que as dos outros."
+    fundamento: "Depois da detecção a conexão cai e a parte da escrita destinada ao garage3 falha (C5: os pedidos restantes seguem em segundo plano, mas sem conexão não chegam)."
+    fontes: ["C5 (rpc_helper.rs l. 413–431, 500–534)", "", ""]
+  - id: P2
+    afirmacao: "Sem repair, a convergência natural acontece pela anti-entropia periódica: em até ~10 min (código), não em 1 h (doc)."
+    fundamento: "Doc: tabelas ressincronizadas a cada hora; código v2.3.0: anti-entropia das tabelas particionadas a cada 10 min (C5b). A tabela de objetos é particionada (FS6)."
+    fontes: ["doc Durability & Repairs", "C5b (sharded.rs l. 27; sync.rs l. 520)", "FS6 (garage.rs l. 67)"]
+  - id: P3
+    afirmacao: "Com repair tables + blocks, a convergência leva bem menos que a natural (segundos a poucas dezenas de segundos)."
+    fundamento: "repair tables faz a sincronização completa das tabelas na hora; repair blocks ressincroniza os blocos."
+    fontes: ["garage repair --help (\"Do a full sync of metadata tables\")", "LaunchRepairOperation (api.rs l. 1231–1248)", "roteiro §7.3 E7.2"]
+  - id: P4
+    afirmacao: "Ao convergir, os 3 nós têm as mesmas contagens nas tabelas de objetos, versões e block_ref, filas zeradas (Merkle e inserção, resync de blocos) e o mesmo uso de disco em data/."
+    fundamento: "Merkle compara as réplicas e só troca o que difere; ao final o estado é idêntico."
+    fontes: ["doc Durability (árvore de Merkle)", "GetNodeStatistics (Table stats; Block manager stats)"]
+perguntas_guia:
+  - "Por que os objetos escritos na partição não chegaram ao garage3 ao reconectar? Compare com uma partição curta."
+  - "Qual intervalo de anti-entropia vale na v2.3.0: o da doc (1 h) ou o do código (10 min)? O que o experimento mostrou?"
+  - "Como a árvore de Merkle permite comparar réplicas sem trocar todos os dados? Ponte com a Unidade 4."
+  - "O que o repair faz de diferente da anti-entropia periódica?"

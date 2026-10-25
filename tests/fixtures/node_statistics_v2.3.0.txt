@@ -1,0 +1,26 @@
+Node ID:                760fb39ebdb45d2f
+Hostname:               garage1
+Garage version:         v2.3.0
+Garage features:        bundled-libs, consul-discovery, fjall, journald, k2v, kubernetes-discovery, lmdb, metrics, sqlite, syslog, telemetry-otlp
+Rust compiler version:  1.91.0
+Database engine:        sqlite3 v3.51.1 (using rusqlite crate)
+
+Table stats:
+  Table                  Items  MklItems  MklTodo  InsQueue  GcTodo
+  admin_token            0      0         0        0         0
+  bucket_v2              1      1         0        0         0
+  bucket_alias           1      1         0        0         0
+  key                    1      1         0        0         0
+  object                 2488   2792      0        0         0
+  bucket_object_counter  1      1         0        0         0
+  multipart_upload       0      0         0        0         0
+  bucket_mpu_counter     0      0         0        0         0
+  version                4313   4710      0        0         0
+  block_ref              504    569       0        0         0
+  k2v_item               0      0         0        0         0
+  k2v_index_counter_v2   0      0         0        0         0
+
+Block manager stats:
+  number of RC entries:       82 (~= number of blocks)
+  resync queue length:        0
+  blocks with resync errors:  0
