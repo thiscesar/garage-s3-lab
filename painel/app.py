@@ -62,6 +62,16 @@ PRESETS: dict[str, dict] = {
 }
 
 
+def linha_do_painel(linha: str) -> bool:
+    """Linha de log gerada pelas consultas do próprio painel à Admin API (a cada 1–5 s): ruído na tela.
+
+    As requisições S3 (ex.: "(key GK…) PUT /sdlab/…") ficam, porque mostram o nó de entrada (E2).
+    """
+    if "garage_api_admin" in linha:
+        return True
+    return "generic_server" in linha and any(r in linha for r in (" /v2/", " /health", " /metrics"))
+
+
 class Ocupado(Exception):
     """Já há uma ação de controle em andamento."""
 
@@ -162,8 +172,7 @@ class Painel:
                 d["objetos"] = None
             try:
                 linhas = ANSI.sub("", cluster.logs(f"garage{n}", desde=desde)).splitlines()
-                # o próprio painel consulta a Admin API a cada 1 s: essas linhas são ruído
-                d["logs"] = [x for x in linhas if "generic_server" not in x][-6:]
+                d["logs"] = [x for x in linhas if not linha_do_painel(x)][-6:]
             except Exception:  # noqa: BLE001 — contêiner removido ou parado: sem logs
                 d["logs"] = []
             nos[n] = d

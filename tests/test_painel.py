@@ -147,3 +147,15 @@ def test_particao_e_cura_pela_api():
             assert total > 0 and {e["op"] for e in lote} == {"GET", "PUT"}
         finally:
             garage.restaurar()
+
+
+def test_filtro_de_logs_mantem_s3_e_tira_admin():
+    s3 = "INFO garage_api_common::generic_server: 172.31.0.1:40242 (key GKcc88) PUT /sdlab/demo"
+    erro = (
+        "WARN garage_api_common::generic_server: error 503 Service Unavailable, Internal error: Could not reach quorum"
+    )
+    admin = "INFO garage_api_common::generic_server: 172.31.0.1:32850 GET /v2/GetClusterStatus"
+    saude = "INFO garage_api_common::generic_server: 172.31.0.1:32850 GET /health"
+    proxy = "INFO garage_api_admin::api_server: Proxied admin API request: GetClusterLayout"
+    assert not painel_app.linha_do_painel(s3) and not painel_app.linha_do_painel(erro)
+    assert all(painel_app.linha_do_painel(x) for x in (admin, saude, proxy))
