@@ -242,7 +242,7 @@ ambiente, commit de cada execução e, por experimento, previsão × resultado, 
 execução: `labctl report --usar E5=2026-10-25T14-21-46` (repetível).
 
 Para rodar a bateria inteira: `make all-experiments` (~4,5 h) ou `make all-experiments QUICK=1` (versão curta,
-para conferir que tudo roda; não entra no relatório).
+~17 min, para conferir que tudo roda; não entra no relatório).
 
 ### Rodar os experimentos
 

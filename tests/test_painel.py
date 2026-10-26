@@ -159,3 +159,10 @@ def test_filtro_de_logs_mantem_s3_e_tira_admin():
     proxy = "INFO garage_api_admin::api_server: Proxied admin API request: GetClusterLayout"
     assert not painel_app.linha_do_painel(s3) and not painel_app.linha_do_painel(erro)
     assert all(painel_app.linha_do_painel(x) for x in (admin, saude, proxy))
+
+
+def test_separa_requisicoes_s3_dos_outros_eventos():
+    s3 = [f"INFO garage_api_common::generic_server: 172.31.0.100:5 (key GK1) PUT /sdlab/k{i}" for i in range(6)]
+    outros = [f"INFO garage_net::netapp: Connection from {i} closed" for i in range(8)]
+    r_s3, r_outros = painel_app.separar_logs([*s3[:3], *outros, *s3[3:]])
+    assert r_s3 == s3[-4:] and r_outros == outros[-6:]

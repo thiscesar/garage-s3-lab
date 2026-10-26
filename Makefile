@@ -54,6 +54,6 @@ painel: venv
 report: venv
 	.venv/bin/labctl report
 
-## all-experiments: E1 a E9 em sequência (~4,5 h; QUICK=1 roda todos em --quick, ~25 min); para no 1º erro
+## all-experiments: E1 a E9 em sequência (~4,5 h; QUICK=1 roda todos em --quick, ~17 min); para no 1º erro
 all-experiments: venv
 	for e in E1 E2 E3 E4 E5 E6 E7 E8 E9; do .venv/bin/labctl run $$e $(if $(QUICK),--quick,) || exit 1; done

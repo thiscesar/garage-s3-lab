@@ -172,8 +172,13 @@ function renderEstado(e) {
 
   $("journal").innerHTML = ((e.lento && e.lento.journal) || []).slice().reverse()
     .map((j) => `<li><b>${new Date(j.ts).toLocaleTimeString("pt-BR")}</b> ${j.comando} ${escapar(JSON.stringify(j.args))}</li>`).join("");
-  $("logs").innerHTML = [1, 2, 3].map((n) =>
-    `<b>garage${n}</b>${((lento[n] || {}).logs || []).map((l) => escapar(l.replace(/^\S+\s+/, ""))).join("\n") || "—"}`).join("");
+  // requisições S3 recebidas por cada nó (o nó de entrada, E2) e os demais eventos do log
+  const limpar = (l) => escapar(l.replace(/^\S+\s+/, "").replace("garage_api_common::generic_server: ", ""));
+  $("logs").innerHTML = [1, 2, 3].map((n) => {
+    const l = lento[n] || {};
+    return `<b>garage${n}</b><i>requisições S3 recebidas:</i>\n${(l.s3 || []).map(limpar).join("\n") || "—"}\n`
+      + `<i>outros eventos:</i>\n${(l.logs || []).map(limpar).join("\n") || "—"}`;
+  }).join("");
 }
 
 const escapar = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));

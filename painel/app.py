@@ -72,6 +72,13 @@ def linha_do_painel(linha: str) -> bool:
     return "generic_server" in linha and any(r in linha for r in (" /v2/", " /health", " /metrics"))
 
 
+def separar_logs(linhas: list[str], n_s3: int = 4, n_outros: int = 6) -> tuple[list[str], list[str]]:
+    """Separa as requisições S3 recebidas pelo nó (o nó de entrada, E2) dos demais eventos do log."""
+    s3 = [x for x in linhas if "generic_server" in x and "(key " in x]
+    outros = [x for x in linhas if not ("generic_server" in x and "(key " in x)]
+    return s3[-n_s3:], outros[-n_outros:]
+
+
 class Ocupado(Exception):
     """Já há uma ação de controle em andamento."""
 
@@ -172,7 +179,7 @@ class Painel:
                 d["objetos"] = None
             try:
                 linhas = ANSI.sub("", cluster.logs(f"garage{n}", desde=desde)).splitlines()
-                d["logs"] = [x for x in linhas if not linha_do_painel(x)][-6:]
+                d["s3"], d["logs"] = separar_logs([x for x in linhas if not linha_do_painel(x)])
             except Exception:  # noqa: BLE001 — contêiner removido ou parado: sem logs
                 d["logs"] = []
             nos[n] = d
