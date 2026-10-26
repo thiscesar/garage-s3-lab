@@ -52,6 +52,7 @@ def test_summary_tem_previsao_resultado_e_analise(tmp_path):
     }
     md = gerar_summary(tmp_path, analise).read_text()
     assert "--quick" in md and "repetições: 1/2 ok" in md and "rep 1: `X: y`" in md
+    assert "Roteiro: §7.3" in md
     assert "| P1 | a \\| b | f (s1) | r1 | ✅ confirmada |" in md
     assert "| P2 | c | g | — (não medido) | — |" in md
     assert "## Extra" in md and "![fig](figures/fig.png)" in md
