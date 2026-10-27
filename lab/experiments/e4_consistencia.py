@@ -201,10 +201,11 @@ class E4(Experiment):
                     linhas_csv.append({"secao": "sobrescrita", "rep": k, "modo": modo, "no": n, **cc})
             taxas[modo] = (stale, leit, anom, err)
             for n in LEITORES:
-                listagens = sum(r[modo]["listagem"]["listagens_por_no"] for r in reps)
+                erros_l = sum(r[modo]["listagem"]["erros"][n] for r in reps)
+                # denominador = listagens respondidas (como no GET, erros ficam fora da taxa)
+                listagens = sum(r[modo]["listagem"]["listagens_por_no"] for r in reps) - erros_l
                 sem_novo = sum(r[modo]["listagem"]["sem_o_novo"][n] for r in reps)
                 faltando = sum(r[modo]["listagem"]["faltando_total"][n] for r in reps)
-                erros_l = sum(r[modo]["listagem"]["erros"][n] for r in reps)
                 ic = stats.wilson(sem_novo, listagens) if listagens else None
                 taxa = f"{ic.p * 100:.2f}% [{ic.ic95[0] * 100:.2f}–{ic.ic95[1] * 100:.2f}]" if ic else "n/a"
                 tab_lista.append([modo, f"garage{n}", listagens, sem_novo, faltando, erros_l, taxa])
@@ -246,6 +247,21 @@ class E4(Experiment):
             sum(x[3] for x in lista[m]) <= 0.05 * max(1, sum(x[2] for x in lista[m])) for m in ("degraded", "dangerous")
         )
         exemplos = [e | {"modo": m} for r in reps for m in MODOS for e in r[m]["sobrescritas"]["exemplos_stale"]][:15]
+        # atraso das leituras desatualizadas (lag_ms do oráculo: início da leitura − 1ª confirmação de uma escrita mais
+        # nova); só sai dos exemplos guardados (até 20 por modo e repetição), então registra se a amostra está completa
+        tab_atraso = []
+        for m in MODOS:
+            lags = [
+                e["lag_ms"] for r in reps for e in r[m]["sobrescritas"]["exemplos_stale"] if e.get("lag_ms") is not None
+            ]
+            if not lags:
+                tab_atraso.append([m, 0, "—", "—", "sim" if taxas[m][0] == 0 else "não"])
+                continue
+            s = stats.resumir(lags)
+            desvio = 0 if s.n < 2 else s.desvio
+            tab_atraso.append(
+                [m, s.n, f"{s.media:.2f} ± {desvio:.2f}", f"{s.maximo:.2f}", "sim" if s.n == taxas[m][0] else "não"]
+            )
         resultados = [
             {
                 "id": "P1",
@@ -287,7 +303,15 @@ class E4(Experiment):
                 (
                     "Leituras após cada confirmação (sobrescritas)",
                     tabela_md(
-                        ["modo", "leitor", "leituras ok", "stale", "anomaly", "error", "taxa stale [IC95 Wilson]"],
+                        [
+                            "modo",
+                            "leitor",
+                            "leituras ok",
+                            "stale",
+                            "anomaly",
+                            "error",
+                            "taxa stale por nó [IC95 Wilson]",
+                        ],
                         tab_leit,
                     ),
                 ),
@@ -297,16 +321,25 @@ class E4(Experiment):
                         [
                             "modo",
                             "leitor",
-                            "listagens",
+                            "listagens respondidas",
                             "sem o objeto novo",
                             "objetos confirmados faltando (soma)",
                             "erros",
-                            "taxa sem o novo [IC95 Wilson]",
+                            "taxa sem o novo por nó [IC95 Wilson]",
                         ],
                         tab_lista,
                     )
                     + "\n\nCritério da P4 (definido antes das execuções): listagens sem o objeto novo ≤ 5% em "
                     "degraded e dangerous. Comparar as taxas e os IC95 com os do GET (tabela anterior).",
+                ),
+                (
+                    "Atraso das leituras desatualizadas",
+                    tabela_md(
+                        ["modo", "n", "atraso médio ± desvio (ms)", "máximo (ms)", "todas as desatualizadas"],
+                        tab_atraso,
+                    )
+                    + "\n\nAtraso = início da leitura desatualizada − 1ª confirmação de uma escrita mais nova (oráculo): "
+                    "limite inferior da janela em que a réplica lida ainda não tinha a escrita.",
                 ),
                 (
                     "Exemplos de leituras desatualizadas (até 15)",
