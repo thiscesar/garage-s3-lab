@@ -120,6 +120,12 @@ function renderEstado(e) {
   estado = e;
   relogio = { servidor: e.agora, local: performance.now() };
 
+  // erro de coleta (Admin API, Docker): os dados da tela podem estar parados
+  const erros = Object.entries(e.erros_coleta || {});
+  const pillErro = $("erros-coleta");
+  pillErro.hidden = erros.length === 0;
+  pillErro.textContent = erros.map(([k, v]) => `coleta ${k} com erro: ${v}`).join(" · ");
+
   const b = $("banner-modo");
   b.className = `banner ${e.modo || ""}`;
   $("modo").textContent = e.modo || "?";

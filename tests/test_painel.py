@@ -166,3 +166,17 @@ def test_separa_requisicoes_s3_dos_outros_eventos():
     outros = [f"INFO garage_net::netapp: Connection from {i} closed" for i in range(8)]
     r_s3, r_outros = painel_app.separar_logs([*s3[:3], *outros, *s3[3:]])
     assert r_s3 == s3[-4:] and r_outros == outros[-6:]
+
+
+def test_erro_de_coleta_aparece_no_estado_e_some_quando_volta():
+    p = painel_app.Painel()
+    p.rapido = {"agora": 0.0}
+
+    def quebrado(api):
+        raise RuntimeError("Admin API fora")
+
+    p._coletar_uma_vez("lento", quebrado, None)
+    p.rapido = {"agora": 1.0}  # o coletor rápido substitui `rapido` a cada segundo
+    assert p.estado()["erros_coleta"] == {"lento": "RuntimeError: Admin API fora"}
+    p._coletar_uma_vez("lento", lambda api: None, None)
+    assert p.estado()["erros_coleta"] == {}

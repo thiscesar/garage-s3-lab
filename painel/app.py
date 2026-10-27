@@ -90,6 +90,7 @@ class Painel:
         self._lock_carga = threading.Lock()
         self._lock_eventos = threading.Lock()
         self.acao: dict | None = None  # ação em andamento ou a última concluída
+        self.erros_coleta: dict[str, str] = {}
         self.rapido: dict = {}
         self.lento: dict = {}
         self.marcos: deque[dict] = deque(maxlen=30)
@@ -108,8 +109,8 @@ class Painel:
     # ------------------------------------------------------------ coletores
 
     def iniciar(self) -> None:
-        for alvo, periodo in ((self._coletar_rapido, 1.0), (self._coletar_lento, 5.0)):
-            t = threading.Thread(target=self._laco, args=(alvo, periodo), daemon=True)
+        for nome, alvo, periodo in (("rapido", self._coletar_rapido, 1.0), ("lento", self._coletar_lento, 5.0)):
+            t = threading.Thread(target=self._laco, args=(nome, alvo, periodo), daemon=True)
             t.start()
             self._threads.append(t)
 
@@ -117,14 +118,20 @@ class Painel:
         self._parar.set()
         self.parar_carga()
 
-    def _laco(self, coletar: Callable[[garage.AdminAPI], None], periodo: float) -> None:
+    def _laco(self, nome: str, coletar: Callable[[garage.AdminAPI], None], periodo: float) -> None:
         api = garage.AdminAPI(timeout=2.0)  # um cliente por thread
         while not self._parar.is_set():
-            try:
-                coletar(api)
-            except Exception as e:  # noqa: BLE001 — o painel segue de pé; o erro aparece na tela
-                self.rapido["erro_coleta"] = f"{type(e).__name__}: {e}"
+            self._coletar_uma_vez(nome, coletar, api)
             self._parar.wait(periodo)
+
+    def _coletar_uma_vez(self, nome: str, coletar: Callable, api) -> None:
+        """Roda um coletor; o erro fica em `erros_coleta` (exposto em estado() e na tela) até a próxima coleta ok.
+        Antes ele ia para `rapido`, que o coletor rápido substitui a cada segundo, e a tela não o mostrava."""
+        try:
+            coletar(api)
+            self.erros_coleta.pop(nome, None)
+        except Exception as e:  # noqa: BLE001 — o painel segue de pé; o erro aparece na tela
+            self.erros_coleta[nome] = f"{type(e).__name__}: {e}"
 
     def _coletar_rapido(self, api: garage.AdminAPI) -> None:
         nos, layout, zonas = {}, None, {}
@@ -285,7 +292,8 @@ class Painel:
             **self.rapido,
             "agora": self.agora(),
             "lento": self.lento,
-            "acao": self.acao,
+            "acao": dict(self.acao) if self.acao else None,  # cópia: a thread da ação ainda pode alterá-la
+            "erros_coleta": dict(self.erros_coleta),
             "ocupado": self._lock_acao.locked(),
             "carga": {"preset": self.preset, "chave_quente": self.chave_quente, "versoes": versoes},
             "marcos": list(self.marcos),
