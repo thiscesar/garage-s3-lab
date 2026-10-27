@@ -42,3 +42,42 @@ def test_convergencia_exige_contagens_filas_e_disco_iguais():
     e = _estado()
     e["du"]["garage3"] = 1000 + 200 * 1024
     assert not E7.convergido(e)[0]
+
+
+def _ciclo(tipo, t_conv, desde=None):
+    falta = _estado()
+    falta["nos"]["garage3"]["tabelas"]["object"]["Items"] = 5
+    return {
+        "tipo": tipo,
+        "escritos": 200,
+        "t_malha_s": 20.0,
+        "antes_cura": falta,
+        "t_convergencia_s": t_conv,
+        "t_tabelas_s": t_conv,
+        "limite_s": 1500,
+        "final": _estado(),
+        "desde_ultimo_reparo_s": desde,
+    }
+
+
+def test_cenario_natural_primeiro_ordem_e_tempo_desde_reparo(tmp_path):
+    import pytest
+
+    with pytest.raises(ValueError, match="cenário inválido"):
+        E7(base=tmp_path, cenario="outro")
+    e = E7(reps=1, base=tmp_path, cenario="natural-primeiro")
+    assert e.ordem == ("natural", "reparo") and e.parametros["ordem"] == ["natural", "reparo"]
+    e.dir.mkdir(parents=True)
+    e.repeticoes = [
+        {
+            "rep": 0,
+            "situacao": "ok",
+            "resultado": {"natural": _ciclo("natural", 300.0), "reparo": _ciclo("reparo", 30.0)},
+        }
+    ]
+    a = e.analyze()
+    ciclos = dict(a["secoes"])["Ciclos"]
+    assert ciclos.index("| 0 | natural |") < ciclos.index("| 0 | reparo |")  # natural antes do reparo
+    nota = dict(a["secoes"])["Ordem dos ciclos e efeito do reparo"]
+    assert "natural → reparo" in nota and "repair.rs l. 43–47" in nota and "sync.rs l. 520" in nota
+    assert E7(base=tmp_path).ordem == ("reparo", "natural")  # referência

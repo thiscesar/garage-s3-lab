@@ -8,11 +8,27 @@ Cada repetição tem dois ciclos, um com `repair` e outro com convergência natu
 Convergência (sem ler objetos, para não disparar repair-on-read, C4): pelas estatísticas de cada nó
 (GetNodeStatistics): contagens iguais nas tabelas object, version e block_ref, filas de Merkle e de inserção
 zeradas, mesmas entradas de blocos e fila de resync zerada; e `du -sb` de data/ igual nos 3 nós.
+
+Ordem dos ciclos e efeito do reparo (código Garage v2.3.0, commit 7b119c0):
+- `LaunchRepairOperation tables` (o mesmo que `garage repair tables` do roteiro E7.2) chama `add_full_sync()` em
+  todas as tabelas (src/api/admin/repair.rs l. 43–47). O worker de sincronização então agenda a próxima
+  anti-entropia para `Instant::now() + ANTI_ENTROPY_INTERVAL` (src/table/sync.rs l. 504–521, l. 520), 10 min nas
+  tabelas particionadas (src/table/replication/sharded.rs l. 27). Fora isso, ele só sincroniza quando chega essa
+  hora, quando o layout muda ou num novo reparo (sync.rs l. 580–596); ao iniciar o nó, a 1ª é 20 s depois (l. 86).
+- Na execução de referência, cada repetição roda o ciclo com reparo e logo depois o natural. O ciclo natural
+  começa, então, com o relógio da anti-entropia zerado pelo reparo anterior: os ~475 s medidos são
+  600 s − (tempo desde o reparo até a cura: convergência do reparo + 120 s de partição + cura) e confirmam o
+  intervalo de 10 min do código, mas NÃO são o tempo natural de recuperação de uma falha real, que pode ser
+  qualquer um entre 0 e 10 min (mais 600 s para os dados de bloco, block/manager.rs l. 474–485).
+- `--scenario natural-primeiro` (opcional, não é a referência): roda o ciclo natural antes do de reparo, com uma
+  pausa aleatória de 0 a 600 s antes dele, e registra em cada ciclo o tempo desde o último reparo disparado pela
+  execução (o laboratório não sabe de reparos ou reinícios anteriores a ela).
 """
 
 from __future__ import annotations
 
 import os
+import random
 import time
 import uuid
 
@@ -24,11 +40,21 @@ from lab.report import tabela_md
 
 TABELAS = ("object", "version", "block_ref")
 PEQUENOS, COM_BLOCO = 150, 50
+CENARIOS = {None: ("reparo", "natural"), "natural-primeiro": ("natural", "reparo")}
+PAUSA_MAX_S = 600  # natural-primeiro: pausa aleatória antes do ciclo natural (fase uniforme no ciclo de 10 min)
 
 
 class E7(Experiment):
     nome = "E7"
     descricao = "Recuperação"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.cenario not in CENARIOS:
+            raise ValueError(f"cenário inválido: {self.cenario} (use natural-primeiro ou nenhum)")
+        self.ordem = CENARIOS[self.cenario]
+        self.parametros = {"ordem": list(self.ordem)}
+        self._ultimo_reparo: float | None = None  # instante (monotônico) do último repair tables desta execução
 
     def _estado(self) -> dict:
         por_no = {f"garage{n}": self.api.estatisticas_no(n) for n in NOS}
@@ -65,6 +91,10 @@ class E7(Experiment):
         limite_natural = 150 if self.quick else 25 * 60  # dados de bloco ~ tabelas + 600 s
         cliente = lab_s3.cliente_s3(1)
         prefixo = f"e7/{tipo}/r{i}-{uuid.uuid4().hex[:6]}"
+        pausa = None
+        if self.cenario == "natural-primeiro" and tipo == "natural":
+            pausa = round(random.uniform(0, 30 if self.quick else PAUSA_MAX_S), 1)
+            time.sleep(pausa)
         t0 = time.monotonic()
         cluster.particionar(3)
         escritos = 0
@@ -81,6 +111,7 @@ class E7(Experiment):
         )
         cluster.curar(3)
         t_cura = time.monotonic()
+        desde_reparo = None if self._ultimo_reparo is None else round(t_cura - self._ultimo_reparo, 1)
         reparos, t_malha, t_tabelas = {}, None, None
         limite = 600 if tipo == "reparo" else limite_natural
         t_conv, ultimo_motivo, amostras = None, None, 0
@@ -90,6 +121,7 @@ class E7(Experiment):
                 t_malha = agora
                 if tipo == "reparo":  # o repair precisa da malha completa; 1º tables (roteiro E7.2)
                     reparos["tables"] = self.api.launch_repair(1, "tables", "*")
+                    self._ultimo_reparo = time.monotonic()
             estado = self._estado()
             amostras += 1
             ok, motivos = self.convergido(estado)
@@ -119,11 +151,13 @@ class E7(Experiment):
             "motivos_nao_convergencia": ultimo_motivo,
             "final": final,
             "reparos": reparos,
+            "pausa_antes_s": pausa,
+            "desde_ultimo_reparo_s": desde_reparo,
         }
 
     def run_rep(self, i: int) -> dict:
         try:
-            return {"reparo": self._ciclo(i, "reparo"), "natural": self._ciclo(i, "natural")}
+            return {tipo: self._ciclo(i, tipo) for tipo in self.ordem}
         finally:
             garage.restaurar()
 
@@ -143,8 +177,9 @@ class E7(Experiment):
             }
 
         linhas_csv, tab = [], []
+        ordem = tuple((self.parametros or {}).get("ordem", ("reparo", "natural")))
         for k, r in enumerate(reps):
-            for tipo in ("reparo", "natural"):
+            for tipo in ordem:
                 c = r[tipo]
                 d = deficit(c["antes_cura"])
                 linhas_csv.append(
@@ -153,6 +188,7 @@ class E7(Experiment):
                         "ciclo": tipo,
                         "t_convergencia_s": c["t_convergencia_s"],
                         "t_malha_s": c["t_malha_s"],
+                        "desde_ultimo_reparo_s": c.get("desde_ultimo_reparo_s"),
                         **{f"faltava_{t}": v for t, v in d.items()},
                     }
                 )
@@ -165,6 +201,7 @@ class E7(Experiment):
                         c["t_malha_s"],
                         c.get("t_tabelas_s") if c.get("t_tabelas_s") is not None else "—",
                         c["t_convergencia_s"] if c["t_convergencia_s"] is not None else f"> {c['limite_s']} s",
+                        c.get("desde_ultimo_reparo_s") if c.get("desde_ultimo_reparo_s") is not None else "—",
                     ]
                 )
         self.gravar_csv("metrics.csv", linhas_csv)
@@ -246,8 +283,22 @@ class E7(Experiment):
                             "malha (s)",
                             "tabelas iguais (s)",
                             "convergência total, com dados de bloco (s)",
+                            "desde o último reparo, na cura (s)",
                         ],
                         tab,
+                    ),
+                ),
+                (
+                    "Ordem dos ciclos e efeito do reparo",
+                    (
+                        f"Ordem nesta execução: {' → '.join(ordem)}. O `repair tables` (LaunchRepairOperation, o mesmo "
+                        "`add_full_sync()` do comando `garage repair tables` do roteiro: src/api/admin/repair.rs l. 43–47) "
+                        "reagenda a próxima anti-entropia para 10 min depois (src/table/sync.rs l. 520; "
+                        "src/table/replication/sharded.rs l. 27). Quando o ciclo natural vem logo depois de um ciclo com "
+                        "reparo, as tabelas convergem cerca de 600 s − (tempo do reparo até a cura) depois da cura: o "
+                        "número confirma o intervalo de 10 min do código, mas é efeito do desenho, não o tempo natural de "
+                        "uma falha real (entre 0 e 10 min, conforme a fase do ciclo, mais ~600 s para os dados de bloco). "
+                        'A coluna "desde o último reparo" só é registrada a partir da .'
                     ),
                 ),
                 (
