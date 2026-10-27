@@ -177,7 +177,7 @@ class E1(Experiment):
                 "id": "P4",
                 "situacao": "confirmada" if p4 and na_faixa else ("inconclusiva" if p4 else "refutada"),
                 "resultado": "; ".join(
-                    f"garage{n}: {r.media:.1f} MiB (máx {r.maximo:.1f})" for n, r in zip(NOS, nos_mem)
+                    f"garage{n}: {r.media:.1f} MiB (máx {r.maximo:.1f})" for n, r in zip(NOS, nos_mem, strict=True)
                 )
                 + f"; limite 128 MiB; faixa do roteiro {'respeitada' if na_faixa else 'NÃO respeitada'}",
             },
