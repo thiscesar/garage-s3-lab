@@ -126,11 +126,25 @@ def reiniciar(nos: tuple[int, ...] = NOS) -> None:
     """
     nomes = " ".join(nome(n) for n in nos)
     eco(f"docker restart {nomes}   # em paralelo")
-    threads = [threading.Thread(target=lambda n=n: container(n).restart()) for n in nos]
+    falhas: dict[int, BaseException] = {}
+
+    def reiniciar_um(n: int) -> None:
+        try:
+            container(n).restart()
+        except Exception as e:  # noqa: BLE001 — repassada depois do join (a exceção de uma thread não sobe sozinha)
+            falhas[n] = e
+
+    threads = [threading.Thread(target=reiniciar_um, args=(n,)) for n in nos]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    if falhas:
+        n, e = min(falhas.items())
+        journal.registrar(
+            "node restart", {"nos": list(nos), "paralelo": True, "falhas": {k: str(v) for k, v in falhas.items()}}
+        )
+        raise type(e)(f"docker restart {nome(n)} falhou: {e}") from e
     journal.registrar("node restart", {"nos": list(nos), "paralelo": True})
 
 

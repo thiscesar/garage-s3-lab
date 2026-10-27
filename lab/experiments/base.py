@@ -264,7 +264,17 @@ class Experiment:
                     registro["situacao"] = "erro"
                     registro["erro"] = f"{type(e).__name__}: {e}"
                     registro["traceback"] = traceback.format_exc()
-                    garage.restaurar()  # a próxima repetição começa do estado padrão
+                    try:
+                        garage.restaurar()  # a próxima repetição começa do estado padrão
+                    except Exception as e2:
+                        # registra a falha da restauração sem perder o erro original; a execução para
+                        registro["erro_restauracao"] = f"{type(e2).__name__}: {e2}"
+                        raise
+                    finally:
+                        registro["duracao_s"] = round(time.monotonic() - t0, 3)
+                        self.repeticoes.append(registro)
+                        self._gravar_manifest()
+                    continue
                 registro["duracao_s"] = round(time.monotonic() - t0, 3)
                 self.repeticoes.append(registro)
                 self._gravar_manifest()

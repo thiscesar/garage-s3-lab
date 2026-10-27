@@ -151,10 +151,12 @@ class E5(Experiment):
         sonda = threading.Thread(target=self._sonda_escrita, args=(querer_ok, parar, saida, t_ref, limite))
         sonda.start()
         t_ref.append(time.monotonic())
-        acao()
-        sonda.join(limite + 5)
-        parar.set()
-        sonda.join()
+        try:
+            acao()
+            sonda.join(limite + 5)
+        finally:  # se a ação falhar, a sonda (não daemon) não pode seguir escrevendo
+            parar.set()
+            sonda.join()
         t = saida.get("t")
         return (None if t is None else round(t - t_ref[0], 2)), saida.get("erro")
 

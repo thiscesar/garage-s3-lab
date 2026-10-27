@@ -70,7 +70,9 @@ class E7(Experiment):
         motivos, nos = [], estado["nos"]
         for t in TABELAS:
             itens = {no: d["tabelas"].get(t, {}).get("Items") for no, d in nos.items()}
-            if len(set(itens.values())) != 1:
+            if None in itens.values():  # estatística ausente (parser não casou) não conta como "igual"
+                motivos.append(f"{t}: itens ausentes {itens}")
+            elif len(set(itens.values())) != 1:
                 motivos.append(f"{t}: itens diferentes {itens}")
             filas = {
                 no: (d["tabelas"].get(t, {}).get("MklTodo", 0), d["tabelas"].get(t, {}).get("InsQueue", 0))
@@ -79,7 +81,9 @@ class E7(Experiment):
             if any(a or b for a, b in filas.values()):
                 motivos.append(f"{t}: filas (MklTodo, InsQueue) {filas}")
         rc = {no: d["blocos"].get("rc") for no, d in nos.items()}
-        if len(set(rc.values())) != 1:
+        if None in rc.values():
+            motivos.append(f"blocos (RC) ausentes {rc}")
+        elif len(set(rc.values())) != 1:
             motivos.append(f"blocos (RC) diferentes {rc}")
         du = estado["du"]
         if max(du.values()) - min(du.values()) > 64 * 1024:

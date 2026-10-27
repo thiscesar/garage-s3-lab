@@ -19,11 +19,19 @@ import uuid
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from lab import garage, plots, stats
+from lab import garage, journal, plots, stats
 from lab import s3 as lab_s3
 from lab.config import NOS
 from lab.experiments.base import Experiment
 from lab.report import tabela_md
+
+
+def lastmodified_com_ms(valores: list[str | None]) -> bool:
+    """P3: todos os LastModified presentes e algum com milissegundos diferentes de zero. `isoformat(timespec=
+    "milliseconds")` sempre escreve ".mmm" (inclusive ".000"), então contar o ponto não prova a precisão em ms."""
+    if not valores or any(v is None for v in valores):
+        return False
+    return any(v.split(".", 1)[1][:3] != "000" for v in valores if "." in v)
 
 
 class E8(Experiment):
@@ -90,28 +98,48 @@ class E8(Experiment):
         id3 = next(x["id"] for x in st["nodes"] if x["hostname"] == "garage3")[:16]
         v0 = st["layoutVersion"]
         antes = garage.layout_history()
-        garage.cli(1, "layout", "assign", "-c", "2G", id3)
-        recusa = None
+        aplicado_2g = False
         try:
-            garage.cli(1, "layout", "apply", "--version", str(v0 + 5))
-        except garage.ErroGarage as e:
-            recusa = str(e)
-        v_apos_recusa = self.api.cluster_status(1)["layoutVersion"]
-        garage.cli(1, "layout", "apply", "--version", str(v0 + 1))
-        v1 = self.api.cluster_status(1)["layoutVersion"]
-        cap = next(
-            (x.get("role") or {}).get("capacity")
-            for x in self.api.cluster_status(1)["nodes"]
-            if x["hostname"] == "garage3"
-        )
-        garage.cli(1, "layout", "assign", "-c", "1G", id3)
-        garage.cli(1, "layout", "apply", "--version", str(v1 + 1))
-        v2 = self.api.cluster_status(1)["layoutVersion"]
+            garage.cli(1, "layout", "assign", "-c", "2G", id3)
+            recusa = None
+            try:
+                garage.cli(1, "layout", "apply", "--version", str(v0 + 5))
+            except garage.ErroGarage as e:
+                recusa = str(e)
+            v_apos_recusa = self.api.cluster_status(1)["layoutVersion"]
+            garage.cli(1, "layout", "apply", "--version", str(v0 + 1))
+            aplicado_2g = True
+            v1 = self.api.cluster_status(1)["layoutVersion"]
+            cap = next(
+                (x.get("role") or {}).get("capacity")
+                for x in self.api.cluster_status(1)["nodes"]
+                if x["hostname"] == "garage3"
+            )
+            garage.cli(1, "layout", "assign", "-c", "1G", id3)
+            garage.cli(1, "layout", "apply", "--version", str(v1 + 1))
+            aplicado_2g = False
+            v2 = self.api.cluster_status(1)["layoutVersion"]
+        except Exception:
+            self._reverter_layout(id3, aplicado_2g)  # o E1 exige 1 GB por nó; o restaurar() não mexe no layout
+            raise
         depois = garage.layout_history()
         self.evidencia("layout_history_antes.txt", "garage layout history (antes)", lambda: antes)
         self.evidencia("layout_history_depois.txt", "garage layout history (depois)", lambda: depois)
         garage.esperar_malha(limite_s=120, api=self.api)
         return {"v0": v0, "v_apos_recusa": v_apos_recusa, "recusa": recusa, "v1": v1, "cap_garage3_v1": cap, "v2": v2}
+
+    def _reverter_layout(self, id3: str, aplicado_2g: bool) -> None:
+        """Desfaz a mudança do E8 após uma falha: descarta a mudança pendente (`garage layout revert --yes`,
+        src/garage/cli/structs.rs l. 163–165, 225–229) ou, se os 2G já foram aplicados, volta a 1G com nova versão."""
+        try:
+            if aplicado_2g:
+                garage.cli(1, "layout", "assign", "-c", "1G", id3)
+                v = self.api.cluster_status(1)["layoutVersion"]
+                garage.cli(1, "layout", "apply", "--version", str(v + 1))
+            else:
+                garage.cli(1, "layout", "revert", "--yes")
+        except garage.ErroGarage as e:
+            journal.registrar("E8: reversão do layout falhou", {"erro": str(e)})
 
     # ------------------------------------------------------------ 4. E8.4
     def _create_bucket_concorrente(self, tentativas: int) -> dict:
@@ -235,7 +263,7 @@ class E8(Experiment):
         unico = all(t["final"] in ("via-garage1", "via-garage2") for t in tent)
         p2 = unico and (not venceu_ultimo or frac_ultimo > 0.5)
         lm_ok = [x for x in lm if x]
-        p3 = len(lm_ok) == len(lm) and all(x.count(".") == 1 for x in lm_ok)
+        p3 = len(lm_ok) == len(lm) and lastmodified_com_ms(lm)
         deltas = [abs(x["delta_start_ms"]) for x in linhas_csv]
         dist = stats.resumir(deltas) if deltas else None
         fig_x = [x["delta_start_ms"] for x in linhas_csv if x["vencedor"]]

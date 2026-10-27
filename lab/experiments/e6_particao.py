@@ -75,10 +75,15 @@ class E6(Experiment):
             marcos["converged_at"] = round(w.agora(), 2)
             time.sleep(10)
         finally:
-            w.parar()
-            sink.fechar()
-            parar.set()
-            th.join()
+            try:
+                w.parar()
+            finally:
+                try:
+                    sink.fechar()
+                finally:
+                    parar.set()
+                    if th.is_alive():
+                        th.join()
         (self.dir / f"phases_rep{i}.json").write_text(json.dumps(marcos))
         return {
             "marcos": marcos,
@@ -109,12 +114,16 @@ class E6(Experiment):
                 d["lat_ms"].append(round((ev["t_end"] - ev["t_start"]) * 1000, 1))
                 if ev.get("class") == "stale":
                     d["stale"] += 1
-                if ev["phase"] == "heal" and lado == "minoria" and prim_ok_min_pos_cura is None:
-                    prim_ok_min_pos_cura = ev["t_end"] - marcos["heal_at"]
+                if ev["phase"] == "heal" and lado == "minoria":
+                    # o arquivo não está ordenado por t_end (leituras saem quando o oráculo libera): usa o menor
+                    t = ev["t_end"] - marcos["heal_at"]
+                    prim_ok_min_pos_cura = t if prim_ok_min_pos_cura is None else min(prim_ok_min_pos_cura, t)
             elif erro.startswith("NoSuchKey"):
                 d["ok"] += 1  # o nó respondeu (chave ainda sem escrita): disponível
                 d.setdefault("nosuchkey", 0)
                 d["nosuchkey"] += 1
+                if ev.get("class") == "stale":  # NoSuchKey com escrita já confirmada = desatualizada (como no E9)
+                    d["stale"] += 1
             elif "Could not reach quorum" in erro:
                 d["quorum"] += 1
                 if ev["phase"] == "partition" and lado == "minoria":
