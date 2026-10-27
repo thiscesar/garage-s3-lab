@@ -6,6 +6,16 @@ Por repetição e por modo:
 - para o garage2, medindo o tempo até a 1ª escrita via garage1 falhar → estado C (1 nó): 20 PUT + 20 GET via garage1;
 - religa garage2 e garage3, medindo o tempo até a 1ª escrita via garage1 voltar a funcionar; espera a malha completa.
 Registra sucesso, erro e a mensagem de cada operação; monta o quadro nós ativos × leitura × escrita.
+
+Transitórios em consistent com 2 nós (P1 refutada) — HIPÓTESE, não fato. O Garage marca um
+par como inativo pela conexão: depois de mais de 4 pings falhos (intervalo de 15 s, tempo limite de 10 s) a conexão é
+fechada (src/net/peering.rs l. 24–30 e l. 445–452), e um RPC sem resposta espera até 300 s (src/rpc/rpc_helper.rs
+l. 33). A explicação "a leitura com R = 2 escolheu o nó recém-parado e o pedido ficou pendurado até o tempo limite
+do cliente (3 s)" só se sustenta se, nesses casos, a conexão com o nó parado NÃO foi fechada logo, o que contradiz a
+P3 (a escrita falha ~2,5 s depois do `docker stop`, sinal de conexão fechada). A  registra paradas do Garage
+acima de 10 s seguidas de SIGKILL, que é o caso a investigar. `--scenario instrumentado` (opcional, não é a referência)
+registra o instante e a duração de cada `docker stop`, as operações que falharam no estado B com o instante de cada
+uma e os eventos de conexão entre os nós nos logs do garage1 e do garage2, para cruzar os tempos.
 """
 
 from __future__ import annotations
@@ -15,6 +25,7 @@ import threading
 import time
 import uuid
 from collections import Counter
+from datetime import UTC, datetime, timedelta
 
 from lab import cluster, garage, plots, stats
 from lab import s3 as lab_s3
@@ -25,6 +36,23 @@ from lab.report import tabela_md
 OPS = 20
 LIMITE_SONDA_S = 60.0
 ESTADOS = {"A": (1, 2, 3), "B": (1, 2), "C": (1,)}
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_CONEXAO = re.compile(r"connect|closed|closing|ping", re.IGNORECASE)
+
+
+def eventos_de_conexao(logs: str, ids_nos: list[str]) -> list[dict]:
+    """Linhas de log (docker logs --timestamps) sobre conexões entre os nós do cluster: precisam citar o ID curto
+    (16 hex) de um nó e falar de conexão/ping. Ignora conexões de clientes da CLI/Admin (IDs efêmeros)."""
+    eventos = []
+    for linha in _ANSI.sub("", logs).splitlines():
+        carimbo, _, resto = linha.partition(" ")
+        if not any(i in resto for i in ids_nos) or not _CONEXAO.search(resto):
+            continue
+        texto = resto.split(": ", 1)[1] if ": " in resto else resto
+        eventos.append({"t_utc": carimbo[:26], "texto": texto.strip()})
+    return eventos
 
 
 def _normalizar(erro: str | None) -> str:
@@ -40,12 +68,55 @@ class E5(Experiment):
     nome = "E5"
     descricao = "Falha e quórum"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.cenario not in (None, "instrumentado"):
+            raise ValueError(f"cenário inválido: {self.cenario} (use instrumentado ou nenhum)")
+        self.instrumentado = self.cenario == "instrumentado"
+        self._falhas_operar: list = []
+        # relógio de parede = monotônico + deslocamento (para cruzar com os logs do Garage, em UTC)
+        self._desloc = datetime.now(UTC).timestamp() - time.monotonic()
+
+    def _utc(self, t_mono: float) -> str:
+        return datetime.fromtimestamp(t_mono + self._desloc, UTC).isoformat(timespec="microseconds")[:26]
+
+    def _parar_medindo(self, n: int, paradas: list) -> None:
+        t0 = time.monotonic()
+        cluster.parar(n)
+        paradas.append({"no": n, "inicio_utc": self._utc(t0), "duracao_s": round(time.monotonic() - t0, 2)})
+
+    def _instrumentacao(self, paradas: list, falhas_b: list) -> dict:
+        """Logs de conexão do garage1 e do garage2 desde a 1ª parada (cenário instrumentado)."""
+        try:
+            ids = [n["id"][:16] for n in self.api.cluster_status(1)["nodes"]]
+        except garage.ErroGarage:
+            ids = []
+        desde = datetime.fromisoformat(paradas[0]["inicio_utc"]).replace(tzinfo=UTC) - timedelta(seconds=1)
+        eventos = {}
+        for n in (1, 2):
+            try:
+                eventos[f"garage{n}"] = eventos_de_conexao(cluster.logs(f"garage{n}", desde=desde), ids)
+            except Exception as e:  # noqa: BLE001 — instrumentação não pode derrubar a repetição
+                eventos[f"garage{n}"] = [{"t_utc": None, "texto": f"logs indisponíveis: {type(e).__name__}: {e}"}]
+        return {"paradas": paradas, "falhas_estado_B": falhas_b, "eventos_conexao": eventos}
+
     def _operar(self, nos_vivos: tuple[int, ...], chaves_leitura: list[str], prefixo: str, n_ops: int) -> dict:
         saida = {}
         for n in nos_vivos:
             c = lab_s3.cliente_s3(n)
             puts = [lab_s3.put(c, n, f"{prefixo}/g{n}-{k}", b"e5") for k in range(n_ops)]
             gets = [lab_s3.get(c, n, chaves_leitura[k % len(chaves_leitura)]) for k in range(n_ops)]
+            if self.instrumentado:
+                self._falhas_operar.extend(
+                    {
+                        "no": n,
+                        "inicio_utc": self._utc(r.t_inicio),
+                        "duracao_s": round(r.t_fim - r.t_inicio, 2),
+                        "erro": r.erro,
+                    }
+                    for r in puts + gets
+                    if not r.ok
+                )
             saida[f"garage{n}"] = {
                 "put_ok": sum(r.ok for r in puts),
                 "put_total": len(puts),
@@ -101,12 +172,17 @@ class E5(Experiment):
                     res.chave for k in range(n_ops) if (res := lab_s3.put(semeador, 1, f"{base}/semente-{k}", b"e5")).ok
                 ]
                 r["estados"]["A"] = self._operar(ESTADOS["A"], chaves, f"{base}/A", n_ops)
-                cluster.parar(3)
+                paradas: list = []
+                self._parar_medindo(3, paradas)
+                self._falhas_operar: list = []
                 r["estados"]["B"] = self._operar(ESTADOS["B"], chaves, f"{base}/B", n_ops)
+                falhas_b, self._falhas_operar = self._falhas_operar, []
                 limite = 20.0 if modo == "dangerous" else LIMITE_SONDA_S  # W = 1: não deve falhar
                 r["t_ate_falhar_s"], r["erro_ao_falhar"] = self._medir_transicao(
-                    lambda: cluster.parar(2), False, limite
+                    lambda p=paradas: self._parar_medindo(2, p), False, limite
                 )
+                if self.instrumentado:
+                    r["instrumentacao"] = self._instrumentacao(paradas, falhas_b)
                 r["estados"]["C"] = self._operar(ESTADOS["C"], chaves, f"{base}/C", n_ops)
 
                 def religar():
@@ -121,6 +197,36 @@ class E5(Experiment):
         return resultado
 
     # ------------------------------------------------------------ análise
+
+    @staticmethod
+    def _secao_instrumentacao(reps: list[dict]) -> list[tuple[str, str]]:
+        """Cenário instrumentado: paradas, falhas do estado B e 1º evento de conexão no garage1 após parar o garage3."""
+        linhas = []
+        for k, rep in enumerate(reps):
+            for modo in MODOS:
+                ins = rep.get(modo, {}).get("instrumentacao")
+                if not ins:
+                    continue
+                paradas = "; ".join(f"g{p['no']} {p['duracao_s']} s" for p in ins["paradas"])
+                t0 = datetime.fromisoformat(ins["paradas"][0]["inicio_utc"])
+                ev = [e for e in ins["eventos_conexao"].get("garage1", []) if e.get("t_utc")]
+                primeiro = (
+                    f"+{(datetime.fromisoformat(ev[0]['t_utc']) - t0).total_seconds():.1f} s: {ev[0]['texto'][:60]}"
+                    if ev
+                    else "—"
+                )
+                linhas.append([k, modo, paradas, len(ins["falhas_estado_B"]), primeiro])
+        if not linhas:
+            return []
+        return [
+            (
+                "Instrumentação das paradas (cenário instrumentado)",
+                tabela_md(
+                    ["rep", "modo", "duração do docker stop", "falhas no estado B", "1º evento de conexão no garage1"],
+                    linhas,
+                ),
+            )
+        ]
 
     def analyze(self) -> dict:
         reps = [r["resultado"] for r in self.repeticoes if r.get("situacao") == "ok"]
@@ -249,6 +355,7 @@ class E5(Experiment):
                     + '\n\nSonda: PUT via garage1 a cada 100 ms. "Parar garage2" com o garage3 já parado; "religar" = '
                     "docker start garage2 e garage3.",
                 ),
+                *self._secao_instrumentacao(reps),
                 (
                     "Mensagens de erro (agrupadas, IDs removidos)",
                     tabela_md(["ocorrências", "mensagem"], [[c, m] for m, c in mensagens.most_common(8)])
