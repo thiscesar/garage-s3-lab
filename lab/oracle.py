@@ -1,8 +1,18 @@
 """Oráculo: classifica cada leitura como fresh, stale, error ou anomaly.
 
-Fundamentação: precedência em tempo real de Malkhi e Reiter (1998, §3.2). Uma operação precede
-outra se termina antes de a outra começar; senão, são concorrentes. Uma leitura não concorrente com
-escritas deve devolver o último valor escrito; uma leitura concorrente pode devolver o anterior ou o novo.
+Fundamentação (Malkhi e Reiter, 1998): precedência em tempo real — uma operação precede outra se
+termina antes de a outra começar; senão, são concorrentes.
+- Leitura **sem** escrita concorrente: deve devolver o último valor escrito numa serialização das escritas
+  anteriores (§3.2, "any read that is concurrent with no writes returns the last value written in some
+  serialization of the preceding writes", o que dá semântica de variável *safe*). A §3.2 não garante nada para
+  leituras concorrentes.
+- Leitura **concorrente** com escritas: o classificador adota o critério da variável *regular* (§5.1, Lema 5.3:
+  devolve o valor da última escrita anterior ou "any of the values being written in the concurrent write
+  operations"; o artigo conclui que o protocolo "implements a regular variable").
+- Escritas concorrentes entre si podem ser serializadas em qualquer ordem (§3.2).
+Limite: cada leitura é classificada só contra as escritas, nunca contra outras leituras. O oráculo **não**
+detecta inversão novo→antigo entre leitores sucessivos (A lê o valor novo de uma escrita ainda não
+confirmada e B, depois, o antigo), permitida numa variável regular e proibida numa linearizável.
 
 Para uma leitura no intervalo [ts, te] que devolveu a versão r:
 - acked_max(ts)   = maior versão cujo PUT foi confirmado antes de ts;
