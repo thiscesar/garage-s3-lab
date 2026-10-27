@@ -42,10 +42,10 @@ def test_put_e_get_por_todos_os_nos(api, clientes):
 
 
 def test_trocar_de_modo_preserva_os_objetos(api, clientes):
-    """FS10: trocar de modo não apaga dados.
+    """Trocar de modo não apaga dados.
 
-    Em degraded (R = 1) a leitura vai só à cópia local (C3); uma réplica que ainda não recebeu a escrita
-    responde NoSuchKey (observado no laboratório). Por isso, em degraded, lê-se pelo nó que gravou;
+    Em degraded (R = 1) a leitura vai só à cópia local (src/rpc/rpc_helper.rs l. 337–397); uma réplica que ainda não recebeu a escrita
+    responde NoSuchKey (observado no desenvolvimento). Por isso, em degraded, lê-se pelo nó que gravou;
     em consistent (R = 2), pelos 3 nós.
     """
     chave = f"smoke/modo/{uuid.uuid4().hex[:8]}"

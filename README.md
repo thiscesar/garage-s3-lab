@@ -77,7 +77,7 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 | **E8** Coordenação e ordem | sem líder; PUTs concorrentes; layout versionado; `CreateBucket` concorrente | valor único em 250/250 pares (LWW), venceu o PUT que começou depois em 84%; `apply` com versão errada recusado; `CreateBucket` concorrente gerou 3 nomes duplicados e 17 buckets órfãos | 5/5 |
 | **E9** Ênfase A: modos sob partição | garage3 isolado por 120 s em cada modo; escrita pela maioria, leitura pelos dois lados, listagem e escrita pela minoria | minoria: `consistent` 0/2 313 respondidas (sem disponibilidade, quórum mantido); `degraded` e `dangerous` 100% respondidas e **100% desatualizadas** (disponibilidade sem leitura após escrita), garage3 congelado na versão do início da partição; escrita pela minoria só aceita em `dangerous`. **Refutada:** em `dangerous`, ~9% das leituras da maioria desatualizadas (previsto ≤ 5%) — a mesma taxa sem partição, efeito de W = 1/R = 1 sob carga | 5/6 |
 
-> **Correção de 25/10/2026:** no teste deste README descobrimos que o cliente boto3 fazia **uma nova tentativa**
+> **Cliente S3 sem novas tentativas (25/10/2026):** o cliente boto3 fazia **uma nova tentativa**
 > depois de timeout ou de erro 503 (no botocore, `max_attempts: 1` = "1 *nova* tentativa"; "sem retries" é
 > `total_max_attempts: 1`). O cliente foi corrigido (com teste) e E5 e E6 foram refeitos: o placar não mudou, mas a
 > nova tentativa escondia falhas (ex.: no E6 a maioria tinha aparecido com 99,6% de disponibilidade). E1–E4 e E8 não

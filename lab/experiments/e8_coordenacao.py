@@ -4,7 +4,7 @@ Partes, por repetição:
 1. sem líder: 30 PUT + 30 GET de 4 KiB via cada nó (taxa de sucesso e latência);
 2. concorrência: 50 pares de PUT na mesma chave, um via garage1 e outro via garage2, disparados juntos por
    uma barreira; registra t_start/t_end de cada um, o valor final (lido via garage3, consistent) e o carimbo
-   da versão final pelo LastModified da listagem (ms; FS4);
+   da versão final pelo LastModified da listagem (ms; list.rs l. 148);
 3. layout (só na repetição 0): assign -c 2G no garage3 + apply (versão +1), tentativa de apply com versão
    errada (deve ser recusada), reversão para 1G (versão +1); evidências de layout history;
 4. E8.4 (só na repetição 0): chave temporária com permissão de criar bucket; 20 pares de CreateBucket com o

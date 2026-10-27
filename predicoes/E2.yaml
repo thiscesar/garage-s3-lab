@@ -8,12 +8,12 @@ previsoes:
     fontes: ["doc Internals (sem nó primário)", "src/api/common/generic_server.rs l. 170 (log INFO por requisição)"]
   - id: P2
     afirmacao: "PUT de objeto pequeno (< 3072 B, dentro dos metadados) via garage1: RPC de escrita da tabela de objetos para os 3 nós."
-    fundamento: "Escrita envia a todas as réplicas de uma vez e retorna ao atingir o quórum W; o resto segue em segundo plano (C5). N = 3 com 3 nós → as 3 réplicas."
-    fontes: ["C5: src/rpc/rpc_helper.rs l. 413–431; src/table/table.rs l. 120–139", "INLINE_THRESHOLD: src/block/manager.rs l. 44"]
+    fundamento: "Escrita envia a todas as réplicas de uma vez e retorna ao atingir o quórum W; o resto segue em segundo plano (src/rpc/rpc_helper.rs l. 413–431). N = 3 com 3 nós → as 3 réplicas."
+    fontes: ["src/rpc/rpc_helper.rs l. 413–431; src/table/table.rs l. 120–139", "INLINE_THRESHOLD: src/block/manager.rs l. 44"]
   - id: P3
     afirmacao: "GET via garage3 em consistent (R = 2): RPC de leitura da tabela de objetos para 2 nós, sendo um deles o próprio garage3."
-    fundamento: "A leitura ordena os nós (próprio nó, mesma zona, menor latência) e só envia os pedidos necessários para o quórum, abrindo outro só se um falhar (C3)."
-    fontes: ["C3: src/rpc/rpc_helper.rs l. 337–397, 627–666", "doc Internals"]
+    fundamento: "A leitura ordena os nós (próprio nó, mesma zona, menor latência) e só envia os pedidos necessários para o quórum, abrindo outro só se um falhar (src/rpc/rpc_helper.rs l. 337–397)."
+    fontes: ["src/rpc/rpc_helper.rs l. 337–397, 627–666", "doc Internals"]
   - id: P4
     afirmacao: "Objeto de 2 MiB (2 blocos de 1 MiB): o PUT envia cada bloco aos 3 nós; o GET via garage3 busca cada bloco de 1 só nó."
     fundamento: "Escrita de bloco usa try_write_many_sets com o mesmo W das tabelas; leitura de bloco percorre os nós um a um e para no primeiro que responde."
@@ -21,7 +21,7 @@ previsoes:
   - id: P5
     afirmacao: "Os metadados de todos os objetos do bucket sdlab ficam na partição = 1º byte do ID do bucket, guardada pelos 3 nós; os blocos vão para a partição do 1º byte do hash Blake2 de cada bloco."
     fundamento: "Chave de partição da tabela de objetos = ID do bucket; para IDs aleatórios o hash é o próprio valor; partição = 8 bits altos do hash; com N = 3 e 3 nós todos guardam todas as partições (E1)."
-    fontes: ["C7: src/model/s3/object_table.rs l. 696–700", "src/table/schema.rs l. 25–32", "src/rpc/layout/version.rs l. 102–105", ""]
+    fontes: ["src/model/s3/object_table.rs l. 696–700", "src/table/schema.rs l. 25–32", "src/rpc/layout/version.rs l. 102–105"]
 perguntas_guia:
   - "Em que momento o cliente recebe a confirmação do PUT? O que acontece com a 3ª réplica depois disso?"
   - "Por que o GET em consistent consulta só 2 nós e não 3? E em degraded?"

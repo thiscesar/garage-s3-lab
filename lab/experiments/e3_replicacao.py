@@ -10,8 +10,7 @@ Na repetição 0 também roda o comando do roteiro: `docker exec cliente python 
 Limites da propagação: o intervalo de 5 ms não é o que limita a medição, porque a 1ª leitura
 sai logo depois da confirmação. Limitam (a) o tamanho da amostra: 15 tentativas por nó e modo; com as taxas do E4
 (0,5% a 2,7% por leitura), a chance de ver 0 casos em 15 vai de 93% a 66%; e (b) o atraso da 1ª leitura, registrado
-desde a revisão em `atraso_1a_leitura_ms` (até a revisão, o cliente boto3 era criado depois da confirmação, alguns
-ms a dezenas de ms). A janela de leitura desatualizada é medida com carga contínua no E4 e no E9.
+em `atraso_1a_leitura_ms`. A janela de leitura desatualizada é medida com carga contínua no E4 e no E9.
 
 Por que o PUT de 4 KiB é mais lento que o GET (código Garage v2.3.0, commit 7b119c0): 4 KiB está acima de
 `INLINE_THRESHOLD = 3072` (src/block/manager.rs l. 44), então o PUT não é só "ler e escrever o objeto" (como abaixo
@@ -51,7 +50,7 @@ class E3(Experiment):
         sha = hashlib.sha256(dados).hexdigest()
         antes = cluster.uso_disco_dados()
         res = lab_s3.put(clientes[1], 1, f"e3/grande/{uuid.uuid4().hex[:8]}", dados)
-        time.sleep(2.0)  # a 3ª réplica recebe em segundo plano (C5)
+        time.sleep(2.0)  # a 3ª réplica recebe em segundo plano
         depois = cluster.uso_disco_dados()
         lidos = {}
         for n in NOS:
@@ -320,7 +319,7 @@ class E3(Experiment):
                     "Sondagem a cada 5 ms, garage2 e garage3 em paralelo, limite de 5 s. O limite da medição não é o "
                     "intervalo de 5 ms, e sim a amostra (15 tentativas por nó e modo: com taxas de 0,5% a 2,7% por "
                     "leitura, a chance de ver 0 casos em 15 vai de 93% a 66%) e o atraso da 1ª leitura "
-                    "(`atraso_1a_leitura_ms`, registrado desde a ). A janela desatualizada é medida "
+                    "(`atraso_1a_leitura_ms`). A janela desatualizada é medida "
                     "com carga contínua no E4 (atraso das leituras desatualizadas) e no E9.",
                 ),
                 (

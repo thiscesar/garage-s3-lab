@@ -5,21 +5,21 @@ previsoes:
   - id: P1
     afirmacao: "Um objeto de 8 MiB (bytes aleatórios) enviado pelo garage1 faz cada dados/gN/data crescer cerca de 8 MiB (3 réplicas completas)."
     fundamento: "N = 3 com 3 nós: todo bloco vai para os 3 nós; dados aleatórios não comprimem (zstd nível 1 por padrão)."
-    fontes: ["doc Layout / Configuration (replication_factor = 3)", "E2 P4 (blocos escritos nos 3)", " (compression_level = 1; block.rs l. 84–92)"]
+    fontes: ["doc Layout / Configuration (replication_factor = 3)", "E2 P4 (blocos escritos nos 3)", "src/block/block.rs l. 84–92 (compression_level = 1)"]
   - id: P2
     afirmacao: "O conteúdo lido por cada um dos 3 nós é idêntico ao enviado (mesmo SHA-256)."
     fundamento: "Qualquer nó atende e reconstrói o objeto a partir dos blocos; blocos são verificados pelo hash."
     fontes: ["doc Internals", "doc Features (blocos com hash)"]
   - id: P3
     afirmacao: "Em consistent, PUT de 4 KiB é mais lento que GET de 4 KiB, e as latências são equivalentes entrando por qualquer nó."
-    fundamento: "O PUT lê o objeto existente (C1) e espera W = 2 réplicas; o GET espera R = 2; não há líder para concentrar a carga."
-    fontes: ["C1 (put.rs l. 156, 711–717)", "C3, C5", "E2 (PUT = leitura + escrita)", "doc Internals (sem nó primário)"]
+    fundamento: "O PUT lê o objeto existente (src/api/s3/put.rs l. 156) e espera W = 2 réplicas; o GET espera R = 2; não há líder para concentrar a carga."
+    fontes: ["src/api/s3/put.rs l. 156, 711–717", "src/rpc/rpc_helper.rs l. 337–397, 627–666", "src/rpc/rpc_helper.rs l. 413–431", "E2 (PUT = leitura + escrita)", "doc Internals (sem nó primário)"]
   - id: P4
     afirmacao: "Tempo de propagação (da confirmação do PUT via garage1 até a 1ª leitura com o valor novo via garage2/garage3): zero em consistent (a 1ª leitura já vê o valor); em degraded e dangerous, quase sempre zero, com casos raros > 0."
-    fundamento: "consistent: R + W > N, os quóruns se cruzam (C6). degraded/dangerous: R = 1 lê só a cópia local (C3); a réplica fora do quórum de escrita recebe o valor em segundo plano (C5), logo pode haver uma janela curta."
-    fontes: ["C3, C5, C6", "doc Configuration (consistency_mode)", ""]
+    fundamento: "consistent: R + W > N, os quóruns se cruzam (src/rpc/replication_mode.rs l. 41–55). degraded/dangerous: R = 1 lê só a cópia local (src/rpc/rpc_helper.rs l. 337–397); a réplica fora do quórum de escrita recebe o valor em segundo plano (src/rpc/rpc_helper.rs l. 413–431), logo pode haver uma janela curta."
+    fontes: ["src/rpc/rpc_helper.rs l. 337–397, 627–666", "src/rpc/rpc_helper.rs l. 413–431", "src/rpc/replication_mode.rs l. 41–55", "doc Configuration (consistency_mode)"]
 perguntas_guia:
   - "O crescimento de cada dados/gN/data bateu com 8 MiB? De onde vem a diferença (cabeçalho zstd, metadados)?"
-  - "Por que o PUT é mais lento que o GET? Relacione com C1 (leitura antes da escrita) e com W."
+  - "Por que o PUT é mais lento que o GET? Relacione com a leitura antes da escrita (src/api/s3/put.rs l. 156) e com W."
   - "A latência depende do nó de entrada? O que isso diz sobre a ausência de líder?"
   - "Por que a propagação é zero em consistent? Houve propagação > 0 em degraded/dangerous? Com que frequência?"

@@ -5,11 +5,11 @@ previsoes:
   - id: P1
     afirmacao: "Os 3 nós aparecem ativos (isUp) na visão de cada um, um por zona (dz1, dz2, dz3), com capacidade de 1 GB cada."
     fundamento: "O iniciar.sh conecta os nós e atribui uma zona por nó com -c 1G, como no kit do roteiro."
-    fontes: ["roteiro §7.2 (iniciar.sh)", "doc Layout (zona e capacidade por nó)", " (-c 1G = 10^9 bytes)"]
+    fontes: ["roteiro §7.2 (iniciar.sh)", "doc Layout (zona e capacidade por nó)", "garage layout assign --help (-c 1G = 10^9 bytes)"]
   - id: P2
     afirmacao: "Layout aplicado com versão ≥ 1 e 256 partições, todas com quórum."
     fundamento: "O layout só vale depois de layout apply --version N; o Garage usa 256 partições."
-    fontes: ["doc Layout", "FOSDEM 2024 (256 partições)", ""]
+    fontes: ["doc Layout", "FOSDEM 2024 (256 partições)"]
   - id: P3
     afirmacao: "Cada um dos 3 nós guarda as 256 partições (N = 3 com 3 nós em 3 zonas)."
     fundamento: "replication_factor = 3 e réplicas em pelo menos 3 zonas distintas: com só 3 nós, todos são réplica de tudo."
@@ -17,11 +17,11 @@ previsoes:
   - id: P4
     afirmacao: "Memória por nó abaixo do mem_limit de 128 MiB, na faixa de 5 a 15 MB citada pelo roteiro."
     fundamento: "Binário único em Rust; o roteiro mediu 5 a 15 MB por nó."
-    fontes: ["roteiro §7.2 (\"Recursos medidos\")", "roteiro §4.3", ""]
+    fontes: ["roteiro §7.2 (\"Recursos medidos\")", "roteiro §4.3"]
   - id: P5
     afirmacao: "Os 3 nós têm o mesmo papel (nó de armazenamento com zona e capacidade); não há papel de líder ou coordenador no estado do cluster."
     fundamento: "Garage não usa líder nem consenso para os dados; qualquer nó atende."
-    fontes: ["doc Internals (sem nó primário)", "doc Features (sem Raft)", ""]
+    fontes: ["doc Internals (sem nó primário)", "doc Features (sem Raft)"]
 perguntas_guia:
   - "Por que, com N = 3 e 3 nós, cada nó guarda todas as partições? O que mudaria com 5 nós?"
   - "Qual a diferença entre um nó de armazenamento e um gateway (nó sem capacidade)?"

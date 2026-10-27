@@ -1,6 +1,6 @@
 """Métricas calculadas a partir dos `ops*.jsonl` já gravados (sem reexecutar nem alterar `results/`).
 
-Tempo sem resposta (B8): a disponibilidade do E6 e do E9 é medida por tentativa, mas cada
+Tempo sem resposta: a disponibilidade do E6 e do E9 é medida por tentativa, mas cada
 cliente espera a resposta antes da próxima operação (`Workload._ritmo`). Um tempo limite de 3 s "ocupa" 3 s e gera
 uma tentativa só, enquanto um erro de quórum responde em milissegundos; por tentativa, as duas falhas pesam igual.
 Esta métrica complementa a disponibilidade por tentativa (não a substitui): fração da fase coberta pela união dos

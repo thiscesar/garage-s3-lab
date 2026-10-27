@@ -1,7 +1,7 @@
-"""E4 mínimo no cluster real (roteiro §7.3 E4§12).
+"""E4 mínimo no cluster real (roteiro §7.3 E4).
 
 Modo consistent (R = 2, W = 2, R + W > N): o escritor sobrescreve a chave via garage1 e leitores leem em laço
-via garage2 e garage3. Previsão (quóruns que se cruzam, C6): 0 leituras desatualizadas e 0 anomalias.
+via garage2 e garage3. Previsão (quóruns que se cruzam): 0 leituras desatualizadas e 0 anomalias.
 Uma única `anomaly` invalida a execução.
 """
 

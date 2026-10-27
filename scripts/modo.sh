@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Troca o consistency_mode: renderiza a configuração, reinicia os 3 nós e espera /health = 200
-#. Script fino: a lógica fica no labctl, que mostra cada ação Docker executada.
+# Script fino: a lógica fica no labctl, que mostra cada ação Docker executada.
 # Uso: scripts/modo.sh consistent|degraded|dangerous
 set -euo pipefail
 cd "$(dirname "$0")/.."

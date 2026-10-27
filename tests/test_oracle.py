@@ -1,4 +1,4 @@
-"""Oráculo (Malkhi e Reiter §3.2 e §5.1, Lema 5.3): casos da lista do fim da §9.4 e bordas."""
+"""Oráculo (Malkhi e Reiter §3.2 e §5.1, Lema 5.3): casos de classificação e bordas."""
 
 import pytest
 

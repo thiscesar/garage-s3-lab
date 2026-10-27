@@ -5,25 +5,25 @@ previsoes:
   - id: P1
     afirmacao: "consistent, durante a partição: o lado majoritário (garage1) continua disponível para PUT e GET depois da janela de detecção."
     fundamento: "garage1 + garage2 formam R = 2 e W = 2."
-    fontes: ["C6", "doc Configuration (consistency_mode)", "roteiro §7.2"]
+    fontes: ["src/rpc/replication_mode.rs l. 41–55", "doc Configuration (consistency_mode)", "roteiro §7.2"]
   - id: P2
     afirmacao: "consistent: o lado minoritário (garage3) fica indisponível para PUT e GET durante a partição e nunca devolve valor desatualizado (só erros): escolhe consistência (C) em vez de disponibilidade (A)."
     fundamento: "Com 1 nó não há R = 2 nem W = 2; o Garage não responde com a cópia local em consistent."
-    fontes: ["C3, C6", "roteiro §7.2 (\"Could not reach quorum of 2\")"]
+    fontes: ["src/rpc/rpc_helper.rs l. 337–397, 627–666", "src/rpc/replication_mode.rs l. 41–55", "roteiro §7.2 (\"Could not reach quorum of 2\")"]
   - id: P3
     afirmacao: "Janela de detecção: nos primeiros ~60–75 s a minoria responde com timeout (cliente de 3 s); depois, com \"Could not reach quorum\". Cada lado passa a ver o outro como indisponível (isUp = false) por volta do mesmo tempo."
     fundamento: "Pings a cada 15 s, timeout de 10 s, desconexão após mais de 4 falhas; RPC padrão espera até 300 s."
-    fontes: ["src/net/peering.rs l. 26–30, 439–453", "src/rpc/rpc_helper.rs l. 33", "", ""]
+    fontes: ["src/net/peering.rs l. 26–30, 439–453", "src/rpc/rpc_helper.rs l. 33"]
   - id: P4
     afirmacao: "Durante a janela de detecção, a maioria pode ter leituras lentas ou com erro quando escolhe o garage3 isolado como 2º nó de leitura."
     fundamento: "A leitura escolhe os nós por (próprio, zona, latência) e só abre outro pedido se um falhar; o pedido ao par isolado fica pendurado até o timeout."
-    fontes: ["C3 (rpc_helper.rs l. 337–397, 627–666)", "rpc_helper.rs l. 33 (300 s)"]
+    fontes: ["src/rpc/rpc_helper.rs l. 337–397, 627–666", "src/rpc/rpc_helper.rs l. 33 (300 s)"]
   - id: P5
     afirmacao: "Depois de curar, a malha volta e a minoria volta a responder; o tempo depende da duração da partição (até ~30 s de nova tentativa de conexão)."
     fundamento: "Pares desconectados são tentados de novo a cada 30 s."
-    fontes: ["src/net/peering.rs l. 24, 316–318", ""]
+    fontes: ["src/net/peering.rs l. 24, 316–318"]
 perguntas_guia:
   - "O que cada lado da partição consegue fazer? Por que a minoria não responde com a cópia local?"
   - "Conclusão C × A: no modo consistent o Garage escolhe consistência ou disponibilidade sob partição? E em degraded (ver E9)?"
   - "Por que, no começo da partição, a minoria dá timeout e não erro de quórum? O que isso significa para um cliente real?"
-  - "A maioria sofreu durante a janela de detecção? Relacione com a escolha de nós da leitura (C3)."
+  - "A maioria sofreu durante a janela de detecção? Relacione com a escolha de nós da leitura (src/rpc/rpc_helper.rs l. 337–397)."

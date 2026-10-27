@@ -5,19 +5,19 @@ previsoes:
   - id: P1
     afirmacao: "Quadro esperado (N = 3) — 3 nós: tudo funciona em todos os modos. 2 nós (garage3 parado): leitura e escrita funcionam em todos os modos. 1 nó (garage2 e garage3 parados): consistent falha leitura e escrita; degraded lê mas não escreve; dangerous lê e escreve."
     fundamento: "consistent R = 2, W = 2; degraded R = 1, W = 2; dangerous R = 1, W = 1. Com k nós ativos, a operação funciona se k ≥ quórum."
-    fontes: ["C6 (src/rpc/replication_mode.rs l. 41–55)", "doc Configuration (consistency_mode)", "roteiro §7.2 (com um nó parado as operações continuaram; com dois, \"Could not reach quorum of 2\")"]
+    fontes: ["src/rpc/replication_mode.rs l. 41–55", "doc Configuration (consistency_mode)", "roteiro §7.2 (com um nó parado as operações continuaram; com dois, \"Could not reach quorum of 2\")"]
   - id: P2
     afirmacao: "As operações que falham por falta de quórum respondem com \"Could not reach quorum of 2\"."
     fundamento: "Mensagem observada pelo roteiro no kit."
-    fontes: ["roteiro §7.2", ""]
+    fontes: ["roteiro §7.2"]
   - id: P3
     afirmacao: "Ao parar o garage2 (com o garage3 já parado), a escrita via garage1 começa a falhar em poucos segundos em consistent e degraded (bem menos que os ~60–75 s da detecção por pings numa partição); em dangerous ela não falha."
     fundamento: "Inferência nossa: no docker stop o Garage encerra de forma limpa (SIGTERM tratado) e a conexão TCP com os pares é fechada; o par passa a não estar Connected sem depender de pings. Em dangerous W = 1."
-    fontes: ["src/garage/server.rs l. 347–355 (sinais)", "src/net/peering.rs l. 170–174 (is_up = Connected)", ""]
+    fontes: ["src/garage/server.rs l. 347–355 (sinais)", "src/net/peering.rs l. 170–174 (is_up = Connected)", "src/net/peering.rs l. 26–30 (detecção por pings)"]
   - id: P4
     afirmacao: "Depois de religar os nós, a escrita via garage1 volta a funcionar em poucos segundos."
     fundamento: "O nó religado lê bootstrap_peers e se conecta aos outros na partida (laço de descoberta roda ao iniciar)."
-    fontes: ["", "src/rpc/system.rs l. 681–686 (bootstrap na descoberta)"]
+    fontes: ["config/garage.toml.j2 (bootstrap_peers)", "src/rpc/system.rs l. 681–686 (bootstrap na descoberta)"]
 perguntas_guia:
   - "Quantas falhas cada modo tolera para leitura e para escrita? Relacione com N, R e W."
   - "Por que parar um nó é detectado mais rápido que isolá-lo da rede (compare com o E6)?"

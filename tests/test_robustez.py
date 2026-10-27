@@ -1,4 +1,4 @@
-"""Bugs de robustez achados na  (sem Docker): cada teste falhava antes da correção."""
+"""Robustez do laboratório diante de falhas (sem Docker)."""
 
 import json
 import threading

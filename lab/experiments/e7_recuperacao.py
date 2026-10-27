@@ -5,7 +5,7 @@ Cada repetição tem dois ciclos, um com `repair` e outro com convergência natu
   com bloco) → mantém a partição até 120 s (maior que a janela de detecção) → cura → espera a malha completa →
   (reparo) dispara LaunchRepairOperation tables e blocks em todos os nós | (natural) só observa →
   mede o tempo até convergir.
-Convergência (sem ler objetos, para não disparar repair-on-read, C4): pelas estatísticas de cada nó
+Convergência (sem ler objetos, para não disparar repair-on-read, table.rs l. 306–361): pelas estatísticas de cada nó
 (GetNodeStatistics): contagens iguais nas tabelas object, version e block_ref, filas de Merkle e de inserção
 zeradas, mesmas entradas de blocos e fila de resync zerada; e `du -sb` de data/ igual nos 3 nós.
 
@@ -248,7 +248,7 @@ class E7(Experiment):
                 "Tempo até convergir após curar",
                 "s",
                 ["#2f855a", "#4a5568"],
-                linha_limite=(600, "10 min (código, C5b)"),
+                linha_limite=(600, "10 min (código)"),
             ),
             self.dir_figuras,
             "tempo_de_convergencia",
@@ -301,8 +301,7 @@ class E7(Experiment):
                         "src/table/replication/sharded.rs l. 27). Quando o ciclo natural vem logo depois de um ciclo com "
                         "reparo, as tabelas convergem cerca de 600 s − (tempo do reparo até a cura) depois da cura: o "
                         "número confirma o intervalo de 10 min do código, mas é efeito do desenho, não o tempo natural de "
-                        "uma falha real (entre 0 e 10 min, conforme a fase do ciclo, mais ~600 s para os dados de bloco). "
-                        'A coluna "desde o último reparo" só é registrada a partir da .'
+                        "uma falha real (entre 0 e 10 min, conforme a fase do ciclo, mais ~600 s para os dados de bloco)."
                     ),
                 ),
                 (

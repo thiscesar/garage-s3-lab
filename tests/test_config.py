@@ -47,7 +47,7 @@ def test_sem_pares_a_lista_fica_vazia(tmp_path):
 
 def test_enderecos_de_escuta_sao_0000(tmp_path):
     texto = renderizar("consistent", ENV, tmp_path)[0].read_text()
-    assert "[::]" not in texto  #  (roteiro §7.2 e §7.6)
+    assert "[::]" not in texto  # roteiro §7.2 e §7.6
     assert texto.count('"0.0.0.0:') == 3
 
 
@@ -99,7 +99,7 @@ def test_colisao_de_faixas(monkeypatch):
 
 
 def test_quoruns_batem_com_a_tabela_da_spec():
-    #  / C6: só consistent tem R + W > N
+    # só consistent tem R + W > N (src/rpc/replication_mode.rs l. 41–55)
     garantidos = {m for m, (r, w) in config.QUORUNS.items() if r + w > config.N_REPLICAS}
     assert garantidos == {"consistent"}
     assert config.QUORUNS == {"consistent": (2, 2), "degraded": (1, 2), "dangerous": (1, 1)}

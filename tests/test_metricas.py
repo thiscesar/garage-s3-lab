@@ -1,4 +1,4 @@
-"""Tempo sem resposta (B8): fração da fase coberta por operações sem resposta, por papel (op, nó)."""
+"""Tempo sem resposta: fração da fase coberta por operações sem resposta, por papel (op, nó)."""
 
 import json
 

@@ -177,7 +177,7 @@ def esperar_malha(
 ) -> float:
     """Espera a malha completa: cada nó vê todos os `nos` como ativos, em `leituras_estaveis` leituras seguidas.
 
-    o /health pode dar 200 com o nó vendo só a si mesmo logo após um restart, e a reconexão leva
+    O /health pode dar 200 com o nó vendo só a si mesmo logo após um restart, e a reconexão leva
     de segundos a dezenas de segundos (novas tentativas a cada 30 s, peering.rs l. 24). Devolve o tempo (s).
     """
     api = api or AdminAPI()

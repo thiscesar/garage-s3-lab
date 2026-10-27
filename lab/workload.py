@@ -12,7 +12,7 @@ alocadas por um contador único, mesmo com vários escritores.
 Ritmo pelo relógio monotônico do host: a operação k sai em t0 + k/taxa; se uma operação atrasar
 (ex.: timeout de 3 s), a próxima sai assim que possível, sem rajada para compensar.
 
-Eventos (formato da ) vão para os *sinks*: arquivo JSONL, lista em memória ou fila do painel.
+Eventos vão para os *sinks*: arquivo JSONL, lista em memória ou fila do painel.
 Leituras só são emitidas quando o oráculo pode classificá-las de forma definitiva (escritas anteriores terminadas).
 """
 

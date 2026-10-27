@@ -1,6 +1,6 @@
 experimento: E8
 titulo: Coordenação e ordem
-roteiro: "§4.2 E8; §7.3 E8 (sem líder; dois PUTs concorrentes via garage1 e garage2: qual sobrevive, LWW, relógio físico × lógico; mudanças de topologia ordenadas pela versão do layout) (CreateBucket concorrente)"
+roteiro: "§4.2 E8; §7.3 E8 (sem líder; dois PUTs concorrentes via garage1 e garage2: qual sobrevive, LWW, relógio físico × lógico; mudanças de topologia ordenadas pela versão do layout); CreateBucket concorrente"
 previsoes:
   - id: P1
     afirmacao: "Não há líder: a mesma carga de escrita via cada nó tem taxa de sucesso de 100% e latências equivalentes (máx ≤ 2× mín), e nenhum nó tem papel especial no estado do cluster."
@@ -9,19 +9,19 @@ previsoes:
   - id: P2
     afirmacao: "Dois PUTs concorrentes na mesma chave (garage1 × garage2): sobrevive um só valor, o mesmo para todos os leitores; em geral o do PUT que começou depois (carimbo maior), com ~50/50 quando os disparos caem no mesmo milissegundo."
     fundamento: "Carimbo = max(maior existente + 1, relógio em ms) gerado no início do PUT; vence o maior (carimbo, UUID aleatório): LWW por relógio físico."
-    fontes: ["C1 (put.rs l. 156, 711–717)", "C2 (object_table.rs l. 662–664, 721–748)", "MALKHI; REITER (1998) §3.2", ""]
+    fontes: ["src/api/s3/put.rs l. 156, 711–717", "src/model/s3/object_table.rs l. 662–664, 721–748", "MALKHI; REITER (1998) §3.2"]
   - id: P3
     afirmacao: "O carimbo da versão vencedora é visível em ms pelo LastModified da listagem e cresce entre tentativas."
     fundamento: "ListObjectsV2 devolve o carimbo da versão com ms; o HEAD só com segundos."
-    fontes: ["FS4: list.rs l. 148; get.rs l. 58–62; time.rs l. 25–30", ""]
+    fontes: ["src/api/s3/list.rs l. 148; src/api/s3/get.rs l. 58–62; src/util/time.rs l. 25–30"]
   - id: P4
     afirmacao: "Mudanças de topologia são ordenadas pela versão do layout: cada apply cria a versão atual + 1; um apply com versão diferente de atual + 1 é recusado; quem decide é o administrador."
     fundamento: "layout apply --version <N> falha se N ≠ 1 + versão anterior; assign só prepara a mudança."
-    fontes: ["doc Layout", "garage layout apply --help (structs.rs l. 217–220)", ""]
+    fontes: ["doc Layout", "garage layout apply --help (src/garage/cli/structs.rs l. 217–220)"]
   - id: P5
     afirmacao: "E8.4: dois CreateBucket simultâneos com o mesmo nome, via garage1 e garage2, podem criar dois buckets (duplicata) em algumas tentativas; se não reproduzir, registrar \"não observado em N tentativas\"."
     fundamento: "CreateBucket faz \"verifica e depois cria\" sem exclusão mútua entre nós; a trava de buckets é local a cada nó e o próprio código diz que pedidos por nós diferentes ainda podem quebrar o cluster."
-    fontes: ["FS5: bucket.rs l. 195–236; locked.rs l. 20–31", "Blog 2023", ""]
+    fontes: ["src/api/s3/bucket.rs l. 195–236; src/model/helper/locked.rs l. 20–31", "Blog 2023 (Auvolat)"]
 perguntas_guia:
   - "Quem coordena uma escrita no Garage? Compare com um sistema com líder (Raft)."
   - "Qual versão sobreviveu nos PUTs concorrentes e por quê? O que mudaria com relógios dessincronizados (Unidade 1)?"

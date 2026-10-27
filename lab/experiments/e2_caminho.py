@@ -6,7 +6,7 @@ Complementos: log INFO do servidor S3 (só no nó de entrada), matriz gateway (P
 mapeamento real bucket → partição → nós.
 
 Com LAB_DEBUG=1, os nós são recriados com RUST_LOG=garage=debug durante o experimento (tentativa extra; o
-código não tem log por RPC em table.rs/rpc_helper.rs, ver ) e voltam ao padrão no teardown.
+código não tem log por RPC em table.rs/rpc_helper.rs) e voltam ao padrão no teardown.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ SEQUENCIA_PUT = """sequenceDiagram
   Note over G1,G3: as métricas mostram os destinos, não a ordem das respostas
   G1-->>G1: ok (réplica local)
   G2-->>G1: ok (ou G3: a 1ª que responder)
-  Note over G1: quórum W atingido (2 de 3 em consistent) → responde (C5)
+  Note over G1: quórum W atingido (2 de 3 em consistent) → responde
   G1->>C: 200 OK
   G3-->>G1: ok (a outra réplica, em segundo plano)"""
 
@@ -115,7 +115,7 @@ class E2(Experiment):
         (rpc_helper.rs l. 184; manager.rs l. 296–300): para ela vale block_bytes_read (monitoring.md l. 219)."""
         antes, disco_antes = self._contadores()
         res = operacao()
-        time.sleep(1.0)  # deixa terminar a parte da escrita que segue em segundo plano (C5)
+        time.sleep(1.0)  # deixa terminar a parte da escrita que segue em segundo plano
         depois, disco_depois = self._contadores()
         disco = {
             no: {
@@ -323,8 +323,8 @@ class E2(Experiment):
                     "RPCs emitidos por operação (1ª repetição)",
                     tabela_md(["operação", "endpoint", "de→para ×RPCs"], linhas_tab)
                     + "\n\nLeitura da tabela: no PUT, o gateway primeiro **lê** o objeto existente para calcular o "
-                    "carimbo (C1: put.rs l. 156, 711–717), com R pedidos (C3), e depois **escreve** nas 3 réplicas "
-                    "(C5). Por isso `Rpc:object` no PUT pequeno = 1 leitura para 2 nós + 1 escrita para 3 nós. "
+                    "carimbo (put.rs l. 156, 711–717), com R pedidos (rpc_helper.rs l. 337–397), e depois **escreve** nas "
+                    "3 réplicas (rpc_helper.rs l. 413–431). Por isso `Rpc:object` no PUT pequeno = 1 leitura para 2 nós + 1 escrita para 3 nós. "
                     "`Rpc:bucket_object_counter` são os contadores do bucket (atualizados por todos os nós). A leitura "
                     "de **blocos** não aparece aqui (não passa por RpcHelper::call): ver a tabela de disco.",
                 ),
@@ -333,7 +333,7 @@ class E2(Experiment):
                     tabela_md(["operação", "garage1", "garage2", "garage3"], disco_tab),
                 ),
                 (
-                    "Diagrama de sequência do PUT (destinos medidos; momento do quórum pela C5)",
+                    "Diagrama de sequência do PUT (destinos medidos; momento do quórum pelo código)",
                     f"```mermaid\n{sequencia}\n```",
                 ),
                 (

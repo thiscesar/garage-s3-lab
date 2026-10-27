@@ -12,8 +12,8 @@ par como inativo pela conexão: depois de mais de 4 pings falhos (intervalo de 1
 fechada (src/net/peering.rs l. 24–30 e l. 445–452), e um RPC sem resposta espera até 300 s (src/rpc/rpc_helper.rs
 l. 33). A explicação "a leitura com R = 2 escolheu o nó recém-parado e o pedido ficou pendurado até o tempo limite
 do cliente (3 s)" só se sustenta se, nesses casos, a conexão com o nó parado NÃO foi fechada logo, o que contradiz a
-P3 (a escrita falha ~2,5 s depois do `docker stop`, sinal de conexão fechada). A  registra paradas do Garage
-acima de 10 s seguidas de SIGKILL, que é o caso a investigar. `--scenario instrumentado` (opcional, não é a referência)
+P3 (a escrita falha ~2,5 s depois do `docker stop`, sinal de conexão fechada). Já foram observadas paradas do
+Garage acima de 10 s seguidas de SIGKILL, que são o caso a investigar. `--scenario instrumentado` (opcional, não é a referência)
 registra o instante e a duração de cada `docker stop`, as operações que falharam no estado B com o instante de cada
 uma e os eventos de conexão entre os nós nos logs do garage1 e do garage2, para cruzar os tempos.
 """

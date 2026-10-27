@@ -125,8 +125,7 @@ class Painel:
             self._parar.wait(periodo)
 
     def _coletar_uma_vez(self, nome: str, coletar: Callable, api) -> None:
-        """Roda um coletor; o erro fica em `erros_coleta` (exposto em estado() e na tela) até a próxima coleta ok.
-        Antes ele ia para `rapido`, que o coletor rápido substitui a cada segundo, e a tela não o mostrava."""
+        """Roda um coletor; o erro fica em `erros_coleta` (exposto em estado() e na tela) até a próxima coleta ok."""
         try:
             coletar(api)
             self.erros_coleta.pop(nome, None)

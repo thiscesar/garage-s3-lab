@@ -4,12 +4,12 @@ roteiro: "§4.2 E7; §7.3 E7 (reconectar garage3 e verificar se os objetos escri
 previsoes:
   - id: P1
     afirmacao: "Os objetos escritos pela maioria durante uma partição longa (120 s, maior que a janela de detecção) não chegam ao garage3 só por reconectar: logo após a malha voltar, as contagens da tabela de objetos e de blocos do garage3 ficam menores que as dos outros."
-    fundamento: "Depois da detecção a conexão cai e a parte da escrita destinada ao garage3 falha (C5: os pedidos restantes seguem em segundo plano, mas sem conexão não chegam)."
-    fontes: ["C5 (rpc_helper.rs l. 413–431, 500–534)", "", ""]
+    fundamento: "Depois da detecção a conexão cai e a parte da escrita destinada ao garage3 falha (src/rpc/rpc_helper.rs l. 413–431: os pedidos restantes seguem em segundo plano, mas sem conexão não chegam)."
+    fontes: ["src/rpc/rpc_helper.rs l. 413–431, 500–534", "src/net/peering.rs l. 26–30, 439–453 (detecção)"]
   - id: P2
     afirmacao: "Sem repair, a convergência natural acontece pela anti-entropia periódica: em até ~10 min (código), não em 1 h (doc)."
-    fundamento: "Doc: tabelas ressincronizadas a cada hora; código v2.3.0: anti-entropia das tabelas particionadas a cada 10 min (C5b). A tabela de objetos é particionada (FS6)."
-    fontes: ["doc Durability & Repairs", "C5b (sharded.rs l. 27; sync.rs l. 520)", "FS6 (garage.rs l. 67)"]
+    fundamento: "Doc: tabelas ressincronizadas a cada hora; código v2.3.0: anti-entropia das tabelas particionadas a cada 10 min (src/table/replication/sharded.rs l. 27). A tabela de objetos é particionada (src/model/garage.rs l. 67)."
+    fontes: ["doc Durability & Repairs", "src/table/replication/sharded.rs l. 27; src/table/sync.rs l. 520", "src/model/garage.rs l. 67"]
   - id: P3
     afirmacao: "Com repair tables + blocks, a convergência leva bem menos que a natural (segundos a poucas dezenas de segundos)."
     fundamento: "repair tables faz a sincronização completa das tabelas na hora; repair blocks ressincroniza os blocos."

@@ -14,7 +14,7 @@ garage1 e garage3 a cada 1 s (janela de detecção, como no E6).
 
 Classificação: leitura "respondeu" = classe fresh ou stale (NoSuchKey incluído);
 erro separado em timeout × "Could not reach quorum" × outro; disponibilidade = respondeu / tentativas; taxa de
-desatualizadas = stale / respondeu, ou "n/a" sem nenhuma resposta (P9). Fase pelo intervalo inteiro da operação.
+desatualizadas = stale / respondeu, ou "n/a" sem nenhuma resposta. Fase pelo intervalo inteiro da operação.
 
 Fatos usados (código v2.3.0): os corpos (~60 B) ficam abaixo de INLINE_THRESHOLD = 3072 B
 (block/manager.rs l. 44), então PUT e GET só tocam a tabela de objetos (put.rs l. 170–222; get.rs l. 313–317,
@@ -747,7 +747,7 @@ class E9(Experiment):
             (
                 "Operações por modo, fase e papel (todas as repetições)",
                 "Respondida = leitura classificada como fresh ou stale (NoSuchKey incluído); desatualizadas "
-                "= stale / respondidas, com IC95% de Wilson, ou n/a sem resposta (P9). Fase pelo intervalo inteiro "
+                "= stale / respondidas, com IC95% de Wilson, ou n/a sem resposta. Fase pelo intervalo inteiro "
                 "da operação: *transicao* = atravessou um marco.\n\n"
                 + tabela_md(
                     [
