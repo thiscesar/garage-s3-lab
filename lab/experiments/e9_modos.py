@@ -20,6 +20,14 @@ Fatos usados (código v2.3.0): os corpos (~60 B) ficam abaixo de INLINE_THRESHOL
 (block/manager.rs l. 44), então PUT e GET só tocam a tabela de objetos (put.rs l. 170–222; get.rs l. 313–317,
 451–458), com os quóruns R e W do modo (table/replication/sharded.rs l. 50–68; rpc/replication_mode.rs l. 41–55).
 A listagem usa a mesma leitura com quórum (list.rs l. 69–71; table.rs l. 363–454).
+
+Cenário opcional `--scenario conflito` (não é a referência nem tem previsões registradas): a
+sonda do A1 escreve numa chave própria, então o A1 não mostra perda de escrita confirmada. No conflito, garage1
+(maioria) e garage3 (minoria) escrevem a MESMA chave durante a partição, com leitores via garage2 e garage3, sem
+chaves frias, listagem nem sonda. Depois da cura, mede quantas escritas confirmadas pela minoria nunca foram lidas
+fora dela e não são o valor final ("descartadas"), e de quem é o valor final em cada nó. O merge escolhe a versão de
+maior (carimbo, UUID) (src/model/s3/object_table.rs l. 722–748); o carimbo vem do relógio do nó que escreveu
+(src/api/s3/put.rs l. 711–717), aqui o mesmo relógio do computador para os três nós.
 """
 
 from __future__ import annotations
@@ -81,6 +89,40 @@ def _respondeu(ev: dict) -> bool:
     return ev["status"] == "ok"
 
 
+def analisar_conflito(eventos: list[dict], marcos: dict, final_por_no: dict) -> dict:
+    """Cenário conflito: escritas na mesma chave pelos dois lados da partição.
+
+    `eventos`: PUT/GET da chave (t_start, t_end, node, status, version_written | version_read); `final_por_no`:
+    versão lida em cada nó depois da cura ({"g1": v, ...}). Uma escrita da minoria é "descartada" se foi confirmada
+    na partição, nunca foi lida pelo leitor da maioria (garage2) e não é o valor final.
+    """
+    escritor = {e["version_written"]: e["node"] for e in eventos if e["op"] == "PUT" and e["status"] == "ok"}
+    lidas_maioria = {e["version_read"] for e in eventos if e["op"] == "GET" and e["node"] == 2 and e["status"] == "ok"}
+    contagem = Counter()
+    min_ok = []
+    for e in eventos:
+        if e["op"] != "PUT" or fase_por_intervalo(e["t_start"], e["t_end"], marcos) != "partition":
+            continue
+        lado = "maj" if e["node"] == 1 else "min"
+        contagem[f"{lado}_tentativas"] += 1
+        if e["status"] == "ok":
+            contagem[f"{lado}_ok"] += 1
+            if lado == "min":
+                min_ok.append(e["version_written"])
+    finais = [v for v in final_por_no.values() if v is not None]
+    v_final = max(set(finais), key=finais.count) if finais else None
+    return {
+        "particao": {k: contagem[k] for k in ("maj_tentativas", "maj_ok", "min_tentativas", "min_ok")},
+        "min_ok_vistas_pela_maioria": sum(v in lidas_maioria for v in min_ok),
+        "min_descartadas": sorted(v for v in min_ok if v not in lidas_maioria and v != v_final),
+        "final": {
+            "versao": v_final,
+            "escritor": None if v_final is None else ("maioria" if escritor.get(v_final) == 1 else "minoria"),
+            "nos_convergidos": sum(v == v_final for v in finais),
+        },
+    }
+
+
 def _pct(a: int, b: int) -> str:
     return f"{a / b * 100:.1f}%" if b else "n/a"
 
@@ -96,6 +138,8 @@ class E9(Experiment):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # --mode restringe as rodadas a um modo; o estado exigido no início continua sendo consistent
+        if self.cenario not in (None, "conflito"):
+            raise ValueError(f"cenário inválido: {self.cenario} (use conflito ou nenhum)")
         so_um = kwargs.get("modo")
         if so_um is not None and so_um not in MODOS:
             raise ValueError(f"modo inválido: {so_um} (use {', '.join(MODOS)})")
@@ -156,54 +200,68 @@ class E9(Experiment):
     def _rodada(self, i: int, modo: str) -> dict:
         p = self.parametros
         tag = f"e9/{modo}/r{i}-{int(time.time())}"
-        contexto = {"run": self.dir.name, "rep": i, "mode": modo, "scenario": "A1"}
+        conflito = self.cenario == "conflito"
+        contexto = {"run": self.dir.name, "rep": i, "mode": modo, "scenario": "conflito" if conflito else "A1"}
         arq_ops = self.dir / f"ops_rep{i}_{modo}.jsonl"
         sink = SinkJSONL(arq_ops)
         w = Workload(
             ConfigCarga(
-                escritores=(1,),
+                # conflito: maioria (g1) e minoria (g3) escrevem a mesma chave; sem chaves frias
+                escritores=(1, 3) if conflito else (1,),
                 leitores=(2, 3),
                 taxa_escrita=p["taxa_escrita"],
-                taxa_fria=p["taxa_fria"],
+                taxa_fria=0 if conflito else p["taxa_fria"],
                 taxa_leitura=p["taxa_leitura"],
                 chave_quente=f"{tag}/hot",
                 prefixo_frias=f"{tag}/cold/",
-                lados={1: "maj"},
+                lados={1: "maj", 3: "min"} if conflito else {1: "maj"},
             ),
             contexto,
             [sink],
         )
-        sonda = Workload(
-            ConfigCarga(
-                escritores=(3,),
-                leitores=(),
-                taxa_escrita=p["taxa_sonda"],
-                taxa_fria=0,
-                chave_quente=f"{tag}/sonda",
-                lados={3: "min"},
-            ),
-            {**contexto, "scenario": "sonda"},
-            [sink],
-            t0=w.t0,
+        sonda = (
+            None
+            if conflito
+            else Workload(
+                ConfigCarga(
+                    escritores=(3,),
+                    leitores=(),
+                    taxa_escrita=p["taxa_sonda"],
+                    taxa_fria=0,
+                    chave_quente=f"{tag}/sonda",
+                    lados={3: "min"},
+                ),
+                {**contexto, "scenario": "sonda"},
+                [sink],
+                t0=w.t0,
+            )
         )
         monitor: list = []
         parar = threading.Event()
         auxiliares = [threading.Thread(target=monitorar_visao, args=(self.api, w.t0, parar, monitor))]
-        auxiliares += [
-            threading.Thread(target=self._listador, args=(w, n, f"{tag}/cold/", contexto, sink, parar)) for n in (2, 3)
-        ]
+        if not conflito:
+            auxiliares += [
+                threading.Thread(target=self._listador, args=(w, n, f"{tag}/cold/", contexto, sink, parar))
+                for n in (2, 3)
+            ]
+        cargas = [w] if sonda is None else [w, sonda]
+
+        def fase(nome: str) -> None:
+            for c in cargas:
+                c.fase = nome
+
         marcos: dict[str, float] = {}
         try:
             for th in auxiliares:
                 th.start()
-            w.fase = sonda.fase = "baseline"
-            w.iniciar()
-            sonda.iniciar()
+            fase("baseline")
+            for c in cargas:
+                c.iniciar()
             time.sleep(p["baseline_s"])
             marcos["partition_start"] = round(w.agora(), 3)  # antes do disconnect
             cluster.particionar(3)
             marcos["partition_at"] = round(w.agora(), 3)  # depois de o disconnect terminar
-            w.fase = sonda.fase = "partition"
+            fase("partition")
             time.sleep(p["particao_s"])
             self.evidencia(
                 f"rep{i}_{modo}_status_fim_particao.txt",
@@ -213,7 +271,7 @@ class E9(Experiment):
             marcos["heal_start"] = round(w.agora(), 3)  # antes do connect
             cluster.curar(3)
             marcos["heal_at"] = round(w.agora(), 3)
-            w.fase = sonda.fase = "heal"
+            fase("heal")
             t_malha = garage.esperar_malha(limite_s=180, api=self.api)
             marcos["converged_at"] = round(w.agora(), 3)
             time.sleep(p["pos_malha_s"])
@@ -226,17 +284,33 @@ class E9(Experiment):
                 w.parar()
             finally:
                 try:
-                    sonda.parar()
+                    if sonda is not None:
+                        sonda.parar()
                 finally:
                     sink.fechar()
         (self.dir / f"phases_rep{i}_{modo}.json").write_text(json.dumps(marcos))
-        verificacao = self._verificar(i, modo, w, arq_ops, marcos, tag)
+        if conflito:
+            verificacao = self._verificar_conflito(i, modo, tag)
+        else:
+            verificacao = self._verificar(i, modo, w, arq_ops, marcos, tag)
         return {
             "marcos": marcos,
             "t_malha_s": round(t_malha, 2),
             "monitor": monitor,
             "verificacao": verificacao,
         }
+
+    def _verificar_conflito(self, i: int, modo: str, tag: str) -> dict:
+        """Cenário conflito: versão da chave lida em cada nó depois da cura (e de quem a escreveu, pelo corpo)."""
+        lida = {}
+        for n in (1, 2, 3):
+            res = lab_s3.get(lab_s3.cliente_s3(n), n, f"{tag}/hot")
+            corpo = json.loads(res.dados) if res.ok else {}
+            lida[f"g{n}"] = {"versao": corpo.get("v"), "escritor": corpo.get("writer"), "erro": res.erro}
+        self.evidencia(
+            f"rep{i}_{modo}_verificacao_conflito.txt", "GET da chave disputada pelos 3 nós depois da cura", lambda: lida
+        )
+        return {"final_por_no": {n: x["versao"] for n, x in lida.items()}, "lida": lida}
 
     def _verificar(self, i: int, modo: str, w: Workload, arq_ops, marcos: dict, tag: str) -> dict:
         """Depois da carga: chave quente pelos 3 nós; chaves frias confirmadas na partição via garage3 e garage2."""
@@ -300,6 +374,54 @@ class E9(Experiment):
             ev["fase"] = fase_por_intervalo(ev["t_start"], ev["t_end"], marcos)
             yield ev
 
+    def _analisar_conflito(self, reps: list) -> dict:
+        linhas, csv_linhas = [], []
+        for i, res in reps:
+            for modo in self.modos:
+                rod = res["rodadas"].get(modo)
+                if not rod:
+                    continue
+                evs = list(self._eventos(i, modo, rod["marcos"]))
+                a = analisar_conflito(evs, rod["marcos"], rod["verificacao"]["final_por_no"])
+                pt = a["particao"]
+                linhas.append(
+                    [
+                        i,
+                        modo,
+                        f"{pt['maj_ok']}/{pt['maj_tentativas']}",
+                        f"{pt['min_ok']}/{pt['min_tentativas']}",
+                        a["min_ok_vistas_pela_maioria"],
+                        len(a["min_descartadas"]),
+                        f"v{a['final']['versao']} ({a['final']['escritor']}, {a['final']['nos_convergidos']}/3 nós)",
+                    ]
+                )
+                csv_linhas.append({"rep": i, "modo": modo, **pt, "min_descartadas": len(a["min_descartadas"])})
+        self.gravar_csv("metrics.csv", csv_linhas)
+        return {
+            "resultados": [],
+            "secoes": [
+                (
+                    "Conflito: maioria e minoria escrevem a mesma chave na partição (cenário opcional, sem previsões)",
+                    tabela_md(
+                        [
+                            "rep",
+                            "modo",
+                            "escritas da maioria ok/tentativas",
+                            "escritas da minoria ok/tentativas",
+                            "da minoria lidas pela maioria",
+                            "da minoria descartadas",
+                            "valor final após a cura",
+                        ],
+                        linhas,
+                    )
+                    + "\n\nDescartada = escrita confirmada pela minoria durante a partição, nunca lida pelo leitor da "
+                    "maioria (garage2) e que não é o valor final. O merge escolhe a maior versão por (carimbo, UUID) "
+                    "(src/model/s3/object_table.rs l. 722–748).",
+                )
+            ],
+            "figuras": [],
+        }
+
     @staticmethod
     def _deteccao(monitor: list, marcos: dict) -> float | None:
         """1º instante após partition_at em que garage1 não vê garage3 ou garage3 não vê garage1."""
@@ -315,6 +437,8 @@ class E9(Experiment):
         reps = [(r["rep"], r["resultado"]) for r in self.repeticoes if r.get("situacao") == "ok"]
         if not reps:
             return {"resultados": []}
+        if self.cenario == "conflito":
+            return self._analisar_conflito(reps)
 
         cont: dict[tuple, Counter] = {}  # (modo, fase, op, nó) → contagens
         lat: dict[tuple, list[float]] = {}
