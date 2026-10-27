@@ -25,6 +25,8 @@ from pathlib import Path
 
 import yaml
 
+from lab.config import MODOS
+
 SITUACOES = {"confirmada": "✅ confirmada", "refutada": "❌ refutada", "inconclusiva": "⚠️ inconclusiva"}
 
 
@@ -133,9 +135,15 @@ def _manifest(dir_execucao: Path) -> dict | None:
 
 
 def execucao_valida(dir_execucao: Path) -> bool:
-    """Completa (não --quick), terminada, com todas as repetições ok e com análise."""
+    """Completa (não --quick), terminada, com todas as repetições ok e com análise; no desenho de referência:
+    sem cenário alternativo (--scenario) e, quando o experimento tem modos (E9), com todos eles (sem --mode)."""
     m = _manifest(dir_execucao)
     if not m or m.get("quick") or not m.get("fim") or not m.get("analise"):
+        return False
+    if m.get("cenario"):
+        return False
+    modos = (m.get("parametros") or {}).get("modos")
+    if modos is not None and set(modos) != set(MODOS):
         return False
     reps = m.get("repeticoes") or []
     return bool(reps) and all(r.get("situacao") == "ok" for r in reps)

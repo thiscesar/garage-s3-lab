@@ -8,7 +8,7 @@ import yaml
 from lab import report
 
 
-def _execucao(base, exp, nome, quick=False, reps_ok=5, reps=5, fim=True, situacoes=("confirmada", "refutada")):
+def _execucao(base, exp, nome, quick=False, reps_ok=5, reps=5, fim=True, situacoes=("confirmada", "refutada"), **extra):
     d = base / exp / nome
     (d / "figures").mkdir(parents=True)
     (d / "figures" / "fig.png").write_bytes(b"png")
@@ -29,6 +29,7 @@ def _execucao(base, exp, nome, quick=False, reps_ok=5, reps=5, fim=True, situaco
             "secoes": [["Tabela", "| a |\n|---|\n| 1 |\n## Subtítulo"]],
             "figuras": ["fig"],
         },
+        **extra,
     }
     (d / "manifest.json").write_text(json.dumps(manifest))
     (d / "summary.md").write_text("# summary")
@@ -48,6 +49,18 @@ def test_escolhe_a_mais_recente_valida(tmp_path):
     esc = report.escolher_referencias(tmp_path)
     assert esc["E1"].name == "2026-10-25T01-00-00"
     assert esc["E2"] is None
+
+
+def test_cenario_ou_modo_restrito_nunca_viram_referencia(tmp_path):
+    # Execuções com cenário alternativo (ex.: E7 natural-primeiro, E9 conflito) ou com --mode (E9 só um modo)
+    # não substituem a execução de referência, mesmo sendo mais recentes e completas.
+    _execucao(tmp_path, "E7", "2026-10-25T01-00-00", cenario=None)
+    _execucao(tmp_path, "E7", "2026-10-27T01-00-00", cenario="natural-primeiro")
+    _execucao(tmp_path, "E9", "2026-10-25T01-00-00", parametros={"modos": ["consistent", "degraded", "dangerous"]})
+    _execucao(tmp_path, "E9", "2026-10-27T01-00-00", parametros={"modos": ["degraded"]})
+    esc = report.escolher_referencias(tmp_path)
+    assert esc["E7"].name == "2026-10-25T01-00-00"
+    assert esc["E9"].name == "2026-10-25T01-00-00"
 
 
 def test_usar_escolhe_e_valida(tmp_path):
