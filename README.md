@@ -28,11 +28,16 @@ Portas em cada nó: **3900** S3 · **3901** RPC · **3903** Admin. Faixas padrã
 Uma **partição** é feita com `docker network disconnect` da rede `interna`: o nó para de falar com os outros, mas
 continua acessível ao cliente pela rede `clientes`.
 
-| Modo | W (escrita) | R (leitura) | R + W > N (N = 3)? |
-|---|---|---|---|
-| `consistent` | 2 | 2 | sim → leitura após escrita garantida |
-| `degraded` | 2 | 1 | não |
-| `dangerous` | 1 | 1 | não |
+| Modo | W (escrita) | R (leitura) | R + W > N (N = 3)? | 2W > N? |
+|---|---|---|---|---|
+| `consistent` | 2 | 2 | sim → leitura após escrita | sim → escrita só com maioria |
+| `degraded` | 2 | 1 | não | sim |
+| `dangerous` | 1 | 1 | não | não → os dois lados de uma partição aceitam escrita |
+
+R + W > N: em `consistent` os quóruns são escolhidos "so that read-after-write consistency is guaranteed" (doc
+`reference-manual/configuration.md` l. 241–243). É leitura após escrita com semântica de variável regular (o reparo na
+leitura roda em segundo plano, `src/table/table.rs` l. 352), não linearizabilidade. 2W > N: dois quóruns de escrita
+sempre se cruzam (condição de quórum de escrita de van Steen e Tanenbaum, *Distributed Systems*, 3ª ed.).
 
 ### Mapa do repositório
 
@@ -67,10 +72,10 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 | **E3** Replicação | objeto de 8 MiB nos 3 discos; latência; propagação | 8,000 MiB em cada nó e SHA-256 igual; PUT ≈ 52 ms × GET ≈ 13 ms (4 KiB); propagação 0 em 90/90 leituras | 4/4 |
 | **E4** Consistência | leitura logo após a escrita, sem falhas | `consistent`: 0 desatualizadas em 2 000; `degraded` 0,5–1,0% e `dangerous` 1,8–2,7%. **Refutada:** a listagem em `dangerous` falhou em ~14% (previsto ≤ 5%); sondagem mostrou listagem = GET quando medidos no mesmo ritmo (hipótese: efeito da cadência das escritas) | 3/4 |
 | **E5** Falha e quórum | parar 1 e 2 nós em cada modo | em regime, o quadro "nós ativos × leitura × escrita" bate com N/R/W nos 9 casos. **Refutadas** por transitórios: em `consistent`, logo após parar um nó, até ~60 s de timeouts por um nó de entrada; voltar a escrever depois de religar levou 13–19 s (previsto < 15 s) | 1/4 |
-| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 96,4% disponível (timeouts só na janela de detecção); minoria 0/2 299 (nenhuma leitura desatualizada); detecção da partição ≈ 79 s; malha refeita ≈ 25 s após curar → **C em vez de A** | 5/5 |
+| **E6** Partição de rede | garage3 isolado por 120 s em `consistent` | maioria 96,4% disponível (timeouts só na janela de detecção); minoria 0/2 299 (nenhuma leitura desatualizada); detecção da partição ≈ 79 s; malha refeita ≈ 25 s após curar → sacrifica a disponibilidade da minoria para manter o quórum | 5/5 |
 | **E7** Recuperação | o nó que volta recebe o que perdeu? anti-entropia e `repair` | sem `repair`: tabelas iguais em ~475 s e dados em ~1 075 s (+600 s de agendamento no código); com `repair`: ~34 s; estado final idêntico. **Refutada:** previsão de ~10 min para a convergência natural completa | 3/4 |
 | **E8** Coordenação e ordem | sem líder; PUTs concorrentes; layout versionado; `CreateBucket` concorrente | valor único em 250/250 pares (LWW), venceu o PUT que começou depois em 84%; `apply` com versão errada recusado; `CreateBucket` concorrente gerou 3 nomes duplicados e 17 buckets órfãos | 5/5 |
-| **E9** Ênfase A: modos sob partição | garage3 isolado por 120 s em cada modo; escrita pela maioria, leitura pelos dois lados, listagem e escrita pela minoria | minoria: `consistent` 0/2 313 respondidas (C); `degraded` e `dangerous` 100% respondidas e **100% desatualizadas** (A), garage3 congelado na versão do início da partição; escrita pela minoria só aceita em `dangerous`. **Refutada:** em `dangerous`, ~9% das leituras da maioria desatualizadas (previsto ≤ 5%) — a mesma taxa sem partição, efeito de W = 1/R = 1 sob carga | 5/6 |
+| **E9** Ênfase A: modos sob partição | garage3 isolado por 120 s em cada modo; escrita pela maioria, leitura pelos dois lados, listagem e escrita pela minoria | minoria: `consistent` 0/2 313 respondidas (sem disponibilidade, quórum mantido); `degraded` e `dangerous` 100% respondidas e **100% desatualizadas** (disponibilidade sem leitura após escrita), garage3 congelado na versão do início da partição; escrita pela minoria só aceita em `dangerous`. **Refutada:** em `dangerous`, ~9% das leituras da maioria desatualizadas (previsto ≤ 5%) — a mesma taxa sem partição, efeito de W = 1/R = 1 sob carga | 5/6 |
 
 > **Correção de 25/10/2026:** no teste deste README descobrimos que o cliente boto3 fazia **uma nova tentativa**
 > depois de timeout ou de erro 503 (no botocore, `max_attempts: 1` = "1 *nova* tentativa"; "sem retries" é
@@ -206,7 +211,7 @@ Funciona sem internet. Mostra:
 
 - **cartões dos 3 nós:** contêiner, `/health`, se está na rede interna, quem ele vê como ativo, memória, disco de
   `data/` e itens da tabela de objetos;
-- **banner do modo:** N, R, W e se R + W > N;
+- **banner do modo:** N, R, W, se R + W > N (leitura após escrita) e se 2W > N (escrita só com maioria);
 - **controles:** particionar/curar o garage3, parar/ligar cada nó, trocar o modo (pede confirmação no próprio
   botão), carga (presets A1, A2, A4), `repair tables`/`repair blocks` e "Restaurar tudo";
 - **ao vivo:** linha do tempo dos últimos 60 s, uma faixa por papel (verde = atualizada/ok, laranja =

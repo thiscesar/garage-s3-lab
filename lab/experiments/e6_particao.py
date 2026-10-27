@@ -261,8 +261,9 @@ class E6(Experiment):
         ]
         conclusao = (
             "Em `consistent`, sob partição, a minoria **não responde** (nem com a cópia local) e a maioria "
-            "segue atendendo: o Garage escolhe **consistência (C)** e sacrifica a **disponibilidade (A)** do "
-            "lado minoritário."
+            "segue atendendo: o Garage **sacrifica a disponibilidade da minoria para manter a garantia de quórum**. "
+            "A garantia é leitura após escrita (doc `configuration.md` l. 241–243), com semântica de variável "
+            "regular (o reparo na leitura roda em segundo plano, `src/table/table.rs` l. 352), não linearizabilidade."
             if p2 and p1
             else "Ver tabela: o comportamento observado não bateu integralmente com a previsão; analisar antes de concluir."
         )

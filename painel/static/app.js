@@ -125,7 +125,10 @@ function renderEstado(e) {
   $("modo").textContent = e.modo || "?";
   const q = e.quorum || {};
   $("quorum").textContent = `N=${q.N} · R=${q.R ?? "?"} · W=${q.W ?? "?"}`;
-  $("garantia").textContent = q["R+W>N"] ? "R + W > N: leitura após escrita garantida" : "R + W ≤ N: sem garantia de leitura após escrita";
+  $("garantia").textContent =
+    (q["R+W>N"] ? "R + W > N: leitura após escrita" : "R + W ≤ N: sem leitura após escrita") +
+    " · " +
+    (q["2W>N"] ? "2W > N: escrita só com maioria" : "2W ≤ N: escrita nos dois lados de uma partição");
 
   const lento = (e.lento && e.lento.nos) || {};
   $("nos").innerHTML = [1, 2, 3].map((n) => {

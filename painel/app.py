@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from lab import cluster, garage, journal
-from lab.config import MODOS, N_REPLICAS, NOS, QUORUNS, modo_atual
+from lab.config import MODOS, NOS, QUORUNS, modo_atual, propriedades_quorum
 from lab.workload import ConfigCarga, Workload
 
 ESTATICOS = Path(__file__).parent / "static"
@@ -154,12 +154,11 @@ class Painel:
         for n in NOS:
             nos[n]["zona"] = zonas.get(f"garage{n}")
         modo = modo_atual()
-        r, w = QUORUNS.get(modo, (None, None))
         self.rapido = {
             "agora": self.agora(),
             "nos": nos,
             "modo": modo,
-            "quorum": {"N": N_REPLICAS, "R": r, "W": w, "R+W>N": None if r is None else r + w > N_REPLICAS},
+            "quorum": propriedades_quorum(modo) if modo in QUORUNS else {},
             "layout": layout,
         }
 

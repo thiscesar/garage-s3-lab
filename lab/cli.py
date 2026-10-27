@@ -12,7 +12,17 @@ from rich.table import Table
 
 from lab import cluster, evidence, garage, journal
 from lab import s3 as lab_s3
-from lab.config import MODOS, N_REPLICAS, NOS, QUORUNS, RAIZ, ErroConfig, Topologia, modo_atual, renderizar
+from lab.config import (
+    MODOS,
+    NOS,
+    QUORUNS,
+    RAIZ,
+    ErroConfig,
+    Topologia,
+    modo_atual,
+    propriedades_quorum,
+    renderizar,
+)
 
 app = typer.Typer(help="Laboratório Garage S3 (Tema 3, Ênfase A).", no_args_is_help=True, add_completion=False)
 config_app = typer.Typer(help="Configuração do Garage.", no_args_is_help=True)
@@ -129,11 +139,12 @@ def status() -> None:
     )
 
     if modo in QUORUNS:
-        r, w = QUORUNS[modo]
-        garantia = (
-            "[green]sim (leitura após escrita garantida)[/green]" if r + w > N_REPLICAS else "[yellow]não[/yellow]"
+        q = propriedades_quorum(modo)
+        leitura = "[green]sim (leitura após escrita)[/green]" if q["R+W>N"] else "[yellow]não[/yellow]"
+        escrita = "[green]sim (escrita só com maioria)[/green]" if q["2W>N"] else "[yellow]não[/yellow]"
+        console.print(
+            f"modo: [bold]{modo}[/bold]   N={q['N']}  R={q['R']}  W={q['W']}   R+W>N? {leitura}   2W>N? {escrita}"
         )
-        console.print(f"modo: [bold]{modo}[/bold]   N={N_REPLICAS}  R={r}  W={w}   R+W>N? {garantia}")
     else:
         console.print("modo: [red]desconhecido[/red] (generated/MODE ausente)")
     console.print(f"layout: versão {layout if layout is not None else '?'}")

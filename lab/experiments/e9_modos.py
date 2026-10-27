@@ -411,6 +411,7 @@ class E9(Experiment):
                     r,
                     w_,
                     "sim" if r + w_ > N_REPLICAS else "não",
+                    "sim" if 2 * w_ > N_REPLICAS else "não",
                     prev_leitura[m],
                     f"{_pct(g3['respondeu'], g3['tentativas'])} respondidas; desatualizadas {taxa_stale(g3)}",
                     prev_escrita[m],
@@ -596,6 +597,7 @@ class E9(Experiment):
                         "R",
                         "W",
                         "R + W > N",
+                        "2W > N",
                         "leitura minoria (teoria)",
                         "leitura minoria (observado)",
                         "escrita minoria (teoria)",
@@ -678,16 +680,18 @@ class E9(Experiment):
             stale = g3["stale"] / g3["respondeu"] if g3["respondeu"] else None
             sonda = s3_["respondeu"] / s3_["tentativas"] if s3_["tentativas"] else 0
             if disp == 0:
-                lado = "a minoria **não respondeu** a leituras (escolha por **C**, sacrificando **A**)"
+                lado = "a minoria **não respondeu** a leituras (sacrifica a disponibilidade para manter o quórum)"
             else:
                 lado = (
                     f"a minoria respondeu {disp * 100:.0f}% das leituras, "
                     + (f"{stale * 100:.0f}% delas desatualizadas" if stale is not None else "")
-                    + " (escolha por **A**, sacrificando **C**)"
+                    + " (prioriza a disponibilidade e perde a leitura após escrita)"
                 )
             partes.append(f"- **{m}:** {lado}; escrita pela minoria aceita em {sonda * 100:.0f}% das tentativas.")
         partes.append(
-            "\nNos termos do PACELC, sob partição (P) `consistent` escolhe C e `degraded`/`dangerous` escolhem A; "
+            "\nNos termos do PACELC, sob partição (P) `consistent` sacrifica a disponibilidade da minoria para manter "
+            "a garantia de quórum (leitura após escrita, variável regular; não linearizável) e `degraded`/`dangerous` "
+            "priorizam a disponibilidade; "
             "a outra metade do PACELC (latência × consistência sem partição) aparece no baseline e no E4. "
             "Texto gerado a partir dos números; a interpretação final é da equipe."
         )

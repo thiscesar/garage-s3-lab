@@ -39,6 +39,23 @@ MODOS = ("consistent", "degraded", "dangerous")
 # src/rpc/replication_mode.rs l. 41–55.
 N_REPLICAS = 3
 QUORUNS = {"consistent": (2, 2), "degraded": (1, 2), "dangerous": (1, 1)}
+
+
+def propriedades_quorum(modo: str) -> dict:
+    """R, W e as duas condições de quórum do modo (N = 3).
+
+    - R + W > N: todo quórum de leitura cruza o de escrita; o Garage escolhe os quóruns de `consistent` "so that
+      read-after-write consistency is guaranteed" (doc `reference-manual/configuration.md` l. 241–243). É leitura
+      após escrita com semântica de variável regular (o reparo na leitura roda em segundo plano, `src/table/table.rs`
+      l. 352), não linearizabilidade.
+    - 2W > N: dois quóruns de escrita sempre se cruzam, então lados disjuntos de uma partição não aceitam escritas
+      ao mesmo tempo. Condição de quórum de escrita de van Steen e Tanenbaum (Distributed Systems, 3ª ed.);
+      não está em Gifford (1979). Aritmeticamente: dois subconjuntos de tamanho W em N se cruzam sse 2W > N.
+    """
+    r, w = QUORUNS[modo]
+    return {"N": N_REPLICAS, "R": r, "W": w, "R+W>N": r + w > N_REPLICAS, "2W>N": 2 * w > N_REPLICAS}
+
+
 NOS = (1, 2, 3)
 REDES_DO_LAB = ("t3_interna", "t3_clientes")
 SEGREDOS = ("RPC_SECRET", "ADMIN_TOKEN", "METRICS_TOKEN")

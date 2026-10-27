@@ -103,3 +103,11 @@ def test_quoruns_batem_com_a_tabela_da_spec():
     garantidos = {m for m, (r, w) in config.QUORUNS.items() if r + w > config.N_REPLICAS}
     assert garantidos == {"consistent"}
     assert config.QUORUNS == {"consistent": (2, 2), "degraded": (1, 2), "dangerous": (1, 1)}
+
+
+def test_propriedades_quorum_por_modo():
+    # 2W > N (van Steen e Tanenbaum): só dangerous aceita escrita nos dois lados de uma partição (E9)
+    p = {m: config.propriedades_quorum(m) for m in config.MODOS}
+    assert {m for m in p if p[m]["R+W>N"]} == {"consistent"}
+    assert {m for m in p if not p[m]["2W>N"]} == {"dangerous"}
+    assert p["degraded"] == {"N": 3, "R": 1, "W": 2, "R+W>N": False, "2W>N": True}
