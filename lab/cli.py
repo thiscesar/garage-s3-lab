@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 import typer
 from docker.errors import DockerException
@@ -323,6 +324,26 @@ def report(
         console.print(f"{exp}: {d.name if d else '[red]sem execução válida[/red]'}")
     journal.registrar("report", {"usar": escolhas}, journal.relativo(arq))
     console.print(f"relatório em {journal.relativo(arq)} (execuções copiadas para results/final/)")
+
+
+EXECUCAO = typer.Argument(..., help="pasta de uma execução do E6 ou do E9 (ex.: results/final/E9)")
+
+
+@app.command()
+def metricas(execucao: Path = EXECUCAO) -> None:
+    """Tempo sem resposta na partição, calculado dos ops*.jsonl já gravados (só lê; não altera results/)."""
+    from lab import metricas as met
+    from lab.experiments.e6_particao import PAPEIS_E6
+    from lab.experiments.e9_modos import PAPEIS
+
+    linhas = met.de_execucao(execucao)
+    if not linhas:
+        _falhar(f"nenhum phases_rep*.json com ops correspondente em {execucao}")
+    papeis = PAPEIS if any(x["modo"] for x in linhas) else PAPEIS_E6
+    tabela = Table("modo", "papel", "n", "tempo sem resposta (% da partição)", "segundos sem resposta (média)")
+    for linha in met.tabela_por_papel(linhas, papeis):
+        tabela.add_row(*(str(x) for x in linha))
+    console.print(tabela)
 
 
 # ---------------------------------------------------------------- painel

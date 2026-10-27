@@ -37,7 +37,7 @@ import threading
 import time
 from collections import Counter
 
-from lab import cluster, garage, plots, stats
+from lab import cluster, garage, metricas, plots, stats
 from lab import s3 as lab_s3
 from lab.config import N_REPLICAS, QUORUNS
 from lab.experiments.base import Experiment, fase_por_intervalo, monitorar_visao
@@ -729,6 +729,20 @@ class E9(Experiment):
                     ],
                     teoria,
                 ),
+            ),
+            (
+                "Tempo sem resposta na partição",
+                tabela_md(
+                    ["modo", "papel", "n", "tempo sem resposta (% da partição)", "segundos sem resposta (média)"],
+                    metricas.tabela_por_papel(metricas.de_execucao(self.dir), PAPEIS),
+                )
+                + "\n\n"
+                + "Fração da fase de partição coberta por operações sem resposta (união dos intervalos [início, fim] das que "
+                "falharam), média ± desvio entre as repetições. Complementa a disponibilidade por tentativa: cada "
+                "cliente espera a resposta antes da próxima operação, então um tempo limite de 3 s ocupa 3 s e conta "
+                "como uma tentativa só (lab/metricas.py). Erros rápidos (sem quórum, depois da detecção) cobrem "
+                "pouco tempo: a métrica mede o tempo em que o cliente ficou esperando sem resposta, não a "
+                "indisponibilidade lógica (para isso, ver a disponibilidade por tentativa).",
             ),
             (
                 "Operações por modo, fase e papel (todas as repetições)",

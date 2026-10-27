@@ -13,12 +13,18 @@ import threading
 import time
 from collections import Counter
 
-from lab import cluster, garage, plots, stats
+from lab import cluster, garage, metricas, plots, stats
 from lab.experiments.base import Experiment, fase_por_intervalo, monitorar_visao
 from lab.report import tabela_md
 from lab.workload import ConfigCarga, SinkJSONL, Workload
 
 LADOS = {1: "maioria", 3: "minoria"}
+PAPEIS_E6 = {
+    ("GET", 1): "leitura maioria (g1)",
+    ("PUT", 1): "escrita maioria (g1)",
+    ("GET", 3): "leitura minoria (g3)",
+    ("PUT", 3): "escrita minoria (g3)",
+}
 
 
 class E6(Experiment):
@@ -270,6 +276,20 @@ class E6(Experiment):
         return {
             "resultados": resultados,
             "secoes": [
+                (
+                    "Tempo sem resposta na partição",
+                    tabela_md(
+                        ["modo", "papel", "n", "tempo sem resposta (% da partição)", "segundos sem resposta (média)"],
+                        metricas.tabela_por_papel(metricas.de_execucao(self.dir), PAPEIS_E6),
+                    )
+                    + "\n\n"
+                    + "Fração da fase de partição coberta por operações sem resposta (união dos intervalos [início, fim] das que "
+                    "falharam), média ± desvio entre as repetições. Complementa a disponibilidade por tentativa: cada "
+                    "cliente espera a resposta antes da próxima operação, então um tempo limite de 3 s ocupa 3 s e conta "
+                    "como uma tentativa só (lab/metricas.py). Erros rápidos (sem quórum, depois da detecção) cobrem "
+                    "pouco tempo: a métrica mede o tempo em que o cliente ficou esperando sem resposta, não a "
+                    "indisponibilidade lógica (para isso, ver a disponibilidade por tentativa).",
+                ),
                 (
                     "Operações por fase e lado (todas as repetições)",
                     tabela_md(
