@@ -80,8 +80,10 @@ depois de rodar (o critério de cada previsão é definido no código antes da e
 > **Correção de 25/10/2026:** no teste deste README descobrimos que o cliente boto3 fazia **uma nova tentativa**
 > depois de timeout ou de erro 503 (no botocore, `max_attempts: 1` = "1 *nova* tentativa"; "sem retries" é
 > `total_max_attempts: 1`). O cliente foi corrigido (com teste) e E5 e E6 foram refeitos: o placar não mudou, mas a
-> nova tentativa escondia falhas (ex.: no E6 a maioria tinha aparecido com 99,6% de disponibilidade). E1–E4, E7 e
-> E8 não tiveram erro S3, então não mudam.
+> nova tentativa escondia falhas (ex.: no E6 a maioria tinha aparecido com 99,6% de disponibilidade). E1–E4 e E8 não
+> tiveram erro S3, então não mudam. O E7 também rodou antes da correção (07:38, commit do cliente às 14:21) e teve
+> escritas com falha durante a partição (187, 198 e 198 de 200 em três ciclos): o efeito fica na contagem de objetos
+> escritos na partição, não no tempo de convergência, que é medido sobre o que foi escrito.
 
 ### Onde estão os resultados
 
@@ -95,9 +97,9 @@ Cada execução grava em `results/<experimento>/<data-hora>/`:
 | `ops*.jsonl`, `metrics.csv` | dados brutos (uma linha por operação) e agregados |
 | `evidence/`, `figures/` | saídas de comandos do Garage com cabeçalho e as figuras (PNG + SVG) |
 
-`results/` **não vai para o git**. As execuções de referência estão na máquina da equipe e serão compartilhadas à
-parte: E1 `2026-10-25T00-47-26`, E2 `00-56-51`, E3 `01-11-14`, E4 `01-21-39`, E5 `14-21-46`, E6 `14-46-04`,
-E7 `07-38-20`, E8 `02-56-57`, E9 `16-03-06`.
+`results/` **não vai para o git**. Execuções de referência (todas de 25/10/2026): E1 `2026-10-25T00-47-26`,
+E2 `00-56-51`, E3 `01-11-14`, E4 `01-21-39`, E5 `14-21-46`, E6 `14-46-04`, E7 `07-38-20`, E8 `02-56-57`,
+E9 `16-03-06`. `labctl report` as reúne em `results/final/`.
 
 ---
 
@@ -163,7 +165,7 @@ Ajuste o prefixo no .env e rode de novo.
 
 Edite o `.env` (criado nessa primeira tentativa), troque o prefixo por uma faixa livre — por exemplo
 `REDE_INTERNA_PREFIXO=10.30.0` — e rode `make up` de novo. Só os três primeiros números mudam; os finais
-(.21, .22, .23, .100) são fixos. Na máquina da equipe a rede interna usa `10.30.0.0/24` por esse motivo. A faixa
+(.21, .22, .23, .100) são fixos. Na máquina das execuções de referência, a rede interna usa `10.30.0.0/24` por esse motivo. A faixa
 efetiva de cada execução fica registrada no `manifest.json`.
 
 > Se o cluster já subiu com uma faixa, para trocá-la rode `make reset` antes (a rede Docker é criada com a faixa
@@ -272,6 +274,17 @@ repetições, **restaura o cluster no final mesmo se der erro** e imprime o plac
 | `labctl run E9` | ~50 min (3 modos × 5 repetições; `--mode degraded` roda só um modo) |
 
 Para execuções longas, deixe a máquina sem outras cargas pesadas (as latências entram nos resultados).
+
+Cenários opcionais (`--scenario`), que não substituem as execuções de referência no `labctl report`:
+
+| Comando | O que faz |
+|---|---|
+| `labctl run E7 --scenario natural-primeiro` | ciclo natural antes do de reparo, com pausa aleatória de 0 a 10 min, e registra o tempo desde o último reparo (o `repair tables` reagenda a anti-entropia para 10 min depois, então na ordem padrão o ciclo natural mede esse efeito) |
+| `labctl run E9 --scenario conflito` | maioria e minoria escrevem a **mesma** chave durante a partição; mede as escritas confirmadas pela minoria que nunca foram lidas fora dela e não são o valor final |
+| `labctl run E5 --scenario instrumentado` | registra a duração de cada `docker stop`, as falhas do estado de 2 nós e os eventos de conexão nos logs do garage1 e do garage2 |
+
+`labctl metricas results/final/E9` (ou `E6`) calcula, a partir dos `ops*.jsonl` já gravados, a fração da partição em
+que cada papel ficou sem resposta, que complementa a disponibilidade por tentativa.
 
 ### Testes
 
